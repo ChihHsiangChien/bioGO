@@ -1,0 +1,16 @@
+[
+  {
+    "questionId": "chi1",
+    "question": "「破釜沉舟」這個成語最初是描述哪位人物的故事？",
+    "options": ["項羽", "劉邦", "司馬遷", "諸葛亮"],
+    "answer": 0,
+    "time": 30
+  },
+  {
+    "questionId": "chi2",
+    "question": "下列哪個字是多音字？",
+    "options": ["行 (xíng/háng)", "天 (tiān)", "地 (dì)", "人 (rén)"],
+    "answer": 0,
+    "time": 30
+  }
+]

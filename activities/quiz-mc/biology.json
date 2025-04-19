@@ -1,0 +1,16 @@
+[  
+  {
+    "questionId": "bio1",
+    "question": "Which organelle is known as the powerhouse of the cell?",
+    "options": ["Nucleus", "Mitochondria", "Ribosome", "Endoplasmic Reticulum"],
+    "answer": 1,
+    "time": 30
+  },
+  {
+    "questionId": "bio2",
+    "question": "What is the process by which plants make food called?",
+    "options": ["Respiration", "Digestion", "Photosynthesis", "Fermentation"],
+    "answer": 2,
+    "time": 30
+  }
+]

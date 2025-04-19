@@ -1,0 +1,16 @@
+[
+  {
+    "questionId": "math1",
+    "question": "What is the value of 7 × 8?",
+    "options": ["48", "54", "56", "64"],
+    "answer": 2,
+    "time": 20
+  },
+  {
+    "questionId": "math2",
+    "question": "What is the square root of 81?",
+    "options": ["7", "8", "9", "10"],
+    "answer": 2,
+    "time": 20
+  }
+]

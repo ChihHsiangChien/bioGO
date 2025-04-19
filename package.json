@@ -1,0 +1,14 @@
+{
+  "name": "teacher-student-interaction",
+  "version": "1.0.0",
+  "description": "Teacher-student real-time interaction platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.5.3",
+    "qrcode": "^1.5.1"
+  }
+}

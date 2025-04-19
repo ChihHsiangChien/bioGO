@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Quiz MC - Teacher</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-color: #f5f7fa;
+      --primary-color: #2c3e50;
+      --secondary-color: #3498db;
+      --text-color: #2c3e50;
+      --button-text: #ffffff;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+    }
+    #sets-container, #questions-container { margin-bottom: 20px; }
+    #questions-list li { margin-bottom: 8px; }
+    #options-list, #answers-list, #fastest-list { list-style: none; padding: 0; }
+    #options-list li { margin: 4px 0; }
+    button {
+      background-color: var(--secondary-color);
+      color: var(--button-text);
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      margin: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Quiz MC - Teacher</h1>
+  <!-- Quiz set selection -->
+  <div id="sets-container">
+    <h2>Select Quiz Set</h2>
+    <ul id="sets-list"></ul>
+  </div>
+  <!-- Questions list, shown after set selection -->
+  <div id="questions-container" style="display:none;">
+    <h2>Questions</h2>
+    <ul id="questions-list"></ul>
+  </div>
+  <div id="current-container" style="display:none;">
+    <h2 id="current-question-text"></h2>
+    <ul id="options-list"></ul>
+    <p>Time left: <span id="time-left"></span> seconds</p>
+    <h3>Answers</h3>
+    <ul id="answers-list"></ul>
+    <h3>Statistics</h3>
+    <canvas id="stats-chart" width="400" height="200"></canvas>
+    <h4>Fastest Responders</h4>
+    <ul id="fastest-list"></ul>
+    <button id="end-question-btn">End Question</button>
+  </div>
+  <script>
+    (function(){
+      // default namespace socket for dashboard events
+      const defaultSocket = io({ query: { role: 'teacher' } });
+      // namespace for quiz-mc events
+      const socket = io('/quiz-mc', { query: { role: 'teacher' } });
+      // 若有指定測驗集參數，直接載入該測驗集
+      const params = new URLSearchParams(window.location.search);
+      const initSet = params.get('set');
+      if (initSet) {
+        document.getElementById('sets-container').style.display = 'none';
+        document.getElementById('questions-container').style.display = 'block';
+        socket.emit('selectSet', initSet);
+      }
+      let questions = [];
+      const qList = document.getElementById('questions-list');
+      const currentContainer = document.getElementById('current-container');
+      const qText = document.getElementById('current-question-text');
+      const optionsList = document.getElementById('options-list');
+      const timeLeftSpan = document.getElementById('time-left');
+      const answersList = document.getElementById('answers-list');
+      const fastestList = document.getElementById('fastest-list');
+      const ctx = document.getElementById('stats-chart').getContext('2d');
+      let chart = null;
+      let timerInterval = null;
+
+      // receive list of available quiz sets
+      socket.on('sets', (sets) => {
+        const list = document.getElementById('sets-list');
+        list.innerHTML = '';
+        sets.forEach(setName => {
+          const li = document.createElement('li');
+          const btn = document.createElement('button');
+          btn.textContent = 'Load ' + setName;
+          btn.addEventListener('click', () => {
+            socket.emit('selectSet', setName);
+            document.getElementById('sets-container').style.display = 'none';
+            document.getElementById('questions-container').style.display = 'block';
+          });
+          li.appendChild(btn);
+          list.appendChild(li);
+        });
+      });
+      // receive loaded questions after set selection
+      socket.on('questions', (qs) => {
+        questions = qs;
+        const container = document.getElementById('questions-container');
+        container.style.display = 'block';
+        qList.innerHTML = '';
+        qs.forEach((q, idx) => {
+          const li = document.createElement('li');
+          li.textContent = (idx + 1) + '. ' + q.question + ' ';
+          const btn = document.createElement('button');
+          btn.textContent = 'Start';
+          btn.addEventListener('click', () => {
+            socket.emit('startQuestion', idx);
+          });
+          li.appendChild(btn);
+          qList.appendChild(li);
+        });
+      });
+
+      socket.on('questionStarted', (data) => {
+        currentContainer.style.display = 'block';
+        answersList.innerHTML = '';
+        fastestList.innerHTML = '';
+        if (chart) {
+          chart.destroy();
+          chart = null;
+        }
+        qText.textContent = data.question;
+        optionsList.innerHTML = '';
+        data.options.forEach((opt) => {
+          const li = document.createElement('li');
+          li.textContent = opt;
+          optionsList.appendChild(li);
+        });
+        let timeLeft = data.time;
+        timeLeftSpan.textContent = timeLeft;
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+          timeLeft--;
+          timeLeftSpan.textContent = timeLeft;
+          if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+          }
+        }, 1000);
+      });
+
+      socket.on('studentAnswered', (data) => {
+        const li = document.createElement('li');
+        li.textContent = `${data.name} answered Option ${data.answerIndex + 1} (${data.correct ? 'correct' : 'wrong'}) in ${data.time}ms`;
+        answersList.appendChild(li);
+      });
+
+      socket.on('questionEnded', ({ stats }) => {
+        clearInterval(timerInterval);
+        if (chart) { chart.destroy(); }
+        const labels = Object.keys(stats.counts).map(i => 'Option ' + (parseInt(i) + 1));
+        const values = Object.values(stats.counts);
+        chart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Answers',
+              data: values,
+              backgroundColor: 'rgba(75, 192, 192, 0.2)'
+            }]
+          }
+        });
+        fastestList.innerHTML = '';
+        stats.fastest.forEach(item => {
+          const li = document.createElement('li');
+          li.textContent = `${item.name} - ${item.time}ms`;
+          fastestList.appendChild(li);
+        });
+      });
+
+      // end current question view
+      document.getElementById('end-question-btn').addEventListener('click', () => {
+        currentContainer.style.display = 'none';
+      });
+      // end activity and return to dashboard
+      const endActBtn = document.createElement('button');
+      endActBtn.id = 'end-activity-btn';
+      endActBtn.textContent = 'Back to Dashboard';
+      endActBtn.style.marginLeft = '8px';
+      document.body.appendChild(endActBtn);
+      endActBtn.addEventListener('click', () => {
+        // clear current activity in dashboard namespace
+        defaultSocket.emit('endActivity');
+        // notify students in quiz namespace
+        socket.emit('endActivity');
+        window.location.href = '/teacher';
+      });
+    })();
+  </script>
+</body>
+</html>
