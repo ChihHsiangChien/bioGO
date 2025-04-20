@@ -40,6 +40,37 @@
       margin-top: 8px;
       cursor: pointer;
     }
+  
+  /* QR Code floating toggle button and panel */
+  #qr-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    background-color: var(--secondary-color);
+    color: var(--button-text);
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  #qr-panel {
+    position: fixed;
+    bottom: 60px;
+    right: 20px;
+    z-index: 1000;
+    background: #ffffff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    display: none;
+    max-width: 220px;
+    text-align: center;
+  }
+  #qr-panel img {
+    max-width: 200px;
+  }
   </style>
 </head>
 <body>
@@ -58,13 +89,23 @@
   </div>
   <script>
     (function(){
-      const socket = io({ query: { role: 'teacher' } });
+      const socket = io('/', { query: { role: 'teacher' } });
       const studentList = document.getElementById('student-list');
       socket.on('updateStudentList', students => {
         studentList.innerHTML = '';
         students.forEach(s => {
           const li = document.createElement('li');
-          li.textContent = s.name + ' (' + s.studentId + ')';
+          li.textContent = s.name;
+          // remove button
+          const btn = document.createElement('button');
+          btn.textContent = 'Remove';
+          btn.style.marginLeft = '8px';
+          btn.addEventListener('click', () => {
+            if (confirm(`移除學生 ${s.name}？`)) {
+              socket.emit('removeStudent', s.studentId);
+            }
+          });
+          li.appendChild(btn);
           studentList.appendChild(li);
         });
       });
@@ -76,45 +117,51 @@
         .then(data => {
           qrImg.src = data.dataUrl;
         });
-      // 動態載入活動列表與細分測驗集 (sets)
+      // 列出所有活動
       fetch('/api/activities')
         .then(res => res.json())
         .then(data => {
           const list = document.getElementById('activities-list');
           data.activities.forEach(activity => {
-            // 先嘗試抓取此活動的測驗集
-            fetch(`/api/activities/${activity}/sets`)
-              .then(res2 => res2.json())
-              .then(obj => {
-                if (obj.sets && obj.sets.length > 0) {
-                  // 針對每個測驗集建立按鈕
-                  obj.sets.forEach(setName => {
-                    const li = document.createElement('li');
-                    const btn = document.createElement('button');
-                    btn.textContent = setName;
-                    btn.addEventListener('click', () => {
-                      socket.emit('launchActivity', activity);
-                      // 傳遞測驗集參數到教師頁面
-                      window.location.href = `/activities/${activity}/teacher.html?set=${encodeURIComponent(setName)}`;
-                    });
-                    li.appendChild(btn);
-                    list.appendChild(li);
-                  });
-                } else {
-                  // 無測驗集，直接啟動活動
-                  const li = document.createElement('li');
-                  const btn = document.createElement('button');
-                  btn.textContent = activity;
-                  btn.addEventListener('click', () => {
-                    socket.emit('launchActivity', activity);
-                    window.location.href = `/activities/${activity}/teacher.html`;
-                  });
-                  li.appendChild(btn);
-                  list.appendChild(li);
-                }
-              });
+            const li = document.createElement('li');
+            const btn = document.createElement('button');
+            btn.textContent = activity;
+            btn.addEventListener('click', () => {
+              socket.emit('launchActivity', activity);
+              window.location.href = `/activities/${activity}/teacher.html`;
+            });
+            li.appendChild(btn);
+            list.appendChild(li);
           });
         });
+    })();
+</script>
+  <!-- QR Code floating toggle -->
+  <button id="qr-btn">QR</button>
+  <div id="qr-panel">
+    <h3>學生登入 QR Code</h3>
+    <img id="qr-float-img" alt="QR Code" />
+  </div>
+  <script>
+    (function() {
+      const qrBtn = document.getElementById('qr-btn');
+      const qrPanel = document.getElementById('qr-panel');
+      let loaded = false;
+      qrBtn.addEventListener('click', () => {
+        if (qrPanel.style.display === 'block') {
+          qrPanel.style.display = 'none';
+        } else {
+          qrPanel.style.display = 'block';
+          if (!loaded) {
+            const loginURL = window.location.origin + '/student';
+            fetch('/api/qrcode?text=' + encodeURIComponent(loginURL))
+              .then(res => res.json())
+              .then(data => { document.getElementById('qr-float-img').src = data.dataUrl; })
+              .catch(console.error);
+            loaded = true;
+          }
+        }
+      });
     })();
   </script>
 </body>

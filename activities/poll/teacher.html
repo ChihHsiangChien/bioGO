@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Poll - Teacher</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    :root {
+      --bg-color: #f5f7fa;
+      --text-color: #2c3e50;
+      --secondary-color: #3498db;
+      --button-text: #ffffff;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      margin: 4px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      background-color: var(--secondary-color);
+      color: var(--button-text);
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      margin: 4px 0;
+      cursor: pointer;
+    }
+    #options-inputs input {
+      margin-bottom: 4px;
+    }
+    #current-poll {
+      margin-top: 20px;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      margin: 4px 0;
+    }
+  
+  /* QR Code floating toggle button and panel */
+  #qr-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    background-color: var(--secondary-color);
+    color: var(--button-text);
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  #qr-panel {
+    position: fixed;
+    bottom: 60px;
+    right: 20px;
+    z-index: 1000;
+    background: #ffffff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    display: none;
+    max-width: 220px;
+    text-align: center;
+  }
+  #qr-panel img {
+    max-width: 200px;
+  }
+  </style>
+</head>
+<body>
+  <h1>Poll - Teacher</h1>
+  <div id="poll-create">
+    <h2>Create New Poll</h2>
+    <input type="text" id="question-input" placeholder="Enter poll question" />
+    <div id="options-inputs">
+      <input type="text" placeholder="Option 1" />
+      <input type="text" placeholder="Option 2" />
+    </div>
+    <button id="add-option-btn">Add Option</button>
+    <button id="start-poll-btn">Start Poll</button>
+  </div>
+  <div id="current-poll" style="display:none;">
+    <h2 id="poll-question-text"></h2>
+    <h3>Options</h3>
+    <ul id="options-list"></ul>
+    <!-- Toggle Responses -->
+    <button id="toggle-responses-btn">Show Responses</button>
+    <div id="responses-container" style="display:none;">
+      <h3>Responses</h3>
+      <ul id="responses-list"></ul>
+    </div>
+    <!-- Toggle Statistics -->
+    <button id="toggle-stats-btn">Show Statistics</button>
+    <div id="stats-container" style="display:none;">
+      <h3>Statistics</h3>
+      <ul id="stats-list"></ul>
+    </div>
+    <button id="end-poll-btn">End Poll</button>
+    <button id="back-dashboard-btn">Back to Dashboard</button>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    (function() {
+      // Dashboard namespace for ending activity
+      const defaultSocket = io('/', { query: { role: 'teacher' } });
+      // Poll namespace
+      const socket = io('/poll', { query: { role: 'teacher' } });
+      // Elements
+      const createDiv = document.getElementById('poll-create');
+      const questionInput = document.getElementById('question-input');
+      const optionsInputsDiv = document.getElementById('options-inputs');
+      const addOptionBtn = document.getElementById('add-option-btn');
+      const startPollBtn = document.getElementById('start-poll-btn');
+      const currentDiv = document.getElementById('current-poll');
+      const pollQuestionText = document.getElementById('poll-question-text');
+      const optionsList = document.getElementById('options-list');
+      const responsesContainer = document.getElementById('responses-container');
+      const responsesList = document.getElementById('responses-list');
+      const toggleResponsesBtn = document.getElementById('toggle-responses-btn');
+      const statsContainer = document.getElementById('stats-container');
+      const statsList = document.getElementById('stats-list');
+      const toggleStatsBtn = document.getElementById('toggle-stats-btn');
+      const endPollBtn = document.getElementById('end-poll-btn');
+      const backBtn = document.getElementById('back-dashboard-btn');
+      let counts = [];
+      let currentPollOptions = [];
+
+      addOptionBtn.addEventListener('click', () => {
+        const count = optionsInputsDiv.querySelectorAll('input').length + 1;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Option ' + count;
+        optionsInputsDiv.appendChild(input);
+      });
+
+      startPollBtn.addEventListener('click', () => {
+        const question = questionInput.value.trim();
+        if (!question) { alert('Please enter a question'); return; }
+        const optionEls = optionsInputsDiv.querySelectorAll('input');
+        const options = Array.from(optionEls).map(i => i.value.trim()).filter(v => v);
+        if (options.length < 2) { alert('Enter at least two options'); return; }
+        socket.emit('startPoll', { question, options });
+      });
+
+      socket.on('pollStarted', (data) => {
+        // switch to poll view
+        createDiv.style.display = 'none';
+        currentDiv.style.display = 'block';
+        // initialize options and counts
+        currentPollOptions = data.options.slice();
+        counts = currentPollOptions.map(() => 0);
+        // reset responses and stats visibility
+        responsesContainer.style.display = 'none';
+        toggleResponsesBtn.textContent = 'Show Responses';
+        statsContainer.style.display = 'none';
+        toggleStatsBtn.textContent = 'Show Statistics';
+        // render question and options
+        pollQuestionText.textContent = data.question;
+        optionsList.innerHTML = '';
+        currentPollOptions.forEach(opt => {
+          const li = document.createElement('li'); li.textContent = opt; optionsList.appendChild(li);
+        });
+        // initial stats
+        updateStats();
+      });
+
+      socket.on('studentVoted', (data) => {
+        const li = document.createElement('li');
+        // show actual option text
+        const optText = currentPollOptions[data.optionIndex] || `Option ${data.optionIndex + 1}`;
+        li.textContent = `${data.name} voted "${optText}"`;
+        responsesList.appendChild(li);
+        counts[data.optionIndex]++;
+        updateStats();
+      });
+
+      socket.on('pollEnded', ({ stats }) => {
+        // update stats from server if provided
+        if (stats) {
+          counts = Object.keys(stats).map(i => stats[i]);
+          updateStats();
+        }
+        alert('Poll ended');
+      });
+
+      function updateStats() {
+        statsList.innerHTML = '';
+        counts.forEach((c, i) => {
+          const li = document.createElement('li');
+          const label = currentPollOptions[i] || `Option ${i + 1}`;
+          li.textContent = `${label}: ${c}`;
+          statsList.appendChild(li);
+        });
+      }
+      // Toggle Responses pane
+      toggleResponsesBtn.addEventListener('click', () => {
+        if (responsesContainer.style.display === 'none') {
+          responsesContainer.style.display = 'block';
+          toggleResponsesBtn.textContent = 'Hide Responses';
+        } else {
+          responsesContainer.style.display = 'none';
+          toggleResponsesBtn.textContent = 'Show Responses';
+        }
+      });
+      // Toggle Statistics pane
+      toggleStatsBtn.addEventListener('click', () => {
+        if (statsContainer.style.display === 'none') {
+          statsContainer.style.display = 'block';
+          toggleStatsBtn.textContent = 'Hide Statistics';
+        } else {
+          statsContainer.style.display = 'none';
+          toggleStatsBtn.textContent = 'Show Statistics';
+        }
+      });
+
+      endPollBtn.addEventListener('click', () => {
+        socket.emit('endPoll');
+      });
+      backBtn.addEventListener('click', () => {
+        // notify default namespace to end activity
+        defaultSocket.emit('endActivity');
+        // notify poll namespace to end activity
+        socket.emit('endActivity');
+        // return to dashboard
+        window.location.href = '/teacher';
+      });
+      socket.on('activityEnded', () => {
+        window.location.href = '/teacher';
+      });
+    })();
+  </script>
+  <!-- QR Code floating toggle -->
+  <button id="qr-btn">QR</button>
+  <div id="qr-panel">
+    <h3>學生登入 QR Code</h3>
+    <img id="qr-float-img" alt="QR Code" />
+  </div>
+  <script>
+    (function() {
+      const qrBtn = document.getElementById('qr-btn');
+      const qrPanel = document.getElementById('qr-panel');
+      let loaded = false;
+      qrBtn.addEventListener('click', () => {
+        if (qrPanel.style.display === 'block') {
+          qrPanel.style.display = 'none';
+        } else {
+          qrPanel.style.display = 'block';
+          if (!loaded) {
+            const loginURL = window.location.origin + '/student';
+            fetch('/api/qrcode?text=' + encodeURIComponent(loginURL))
+              .then(res => res.json())
+              .then(data => { document.getElementById('qr-float-img').src = data.dataUrl; })
+              .catch(console.error);
+            loaded = true;
+          }
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

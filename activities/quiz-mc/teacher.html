@@ -32,6 +32,37 @@
       margin: 4px;
       cursor: pointer;
     }
+  
+  /* QR Code floating toggle button and panel */
+  #qr-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    background-color: var(--secondary-color);
+    color: var(--button-text);
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  #qr-panel {
+    position: fixed;
+    bottom: 60px;
+    right: 20px;
+    z-index: 1000;
+    background: #ffffff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    display: none;
+    max-width: 220px;
+    text-align: center;
+  }
+  #qr-panel img {
+    max-width: 200px;
+  }
   </style>
 </head>
 <body>
@@ -61,9 +92,11 @@
   <script>
     (function(){
       // default namespace socket for dashboard events
-      const defaultSocket = io({ query: { role: 'teacher' } });
+      const defaultSocket = io('/', { query: { role: 'teacher' } });
       // namespace for quiz-mc events
       const socket = io('/quiz-mc', { query: { role: 'teacher' } });
+      // current question options for chart labels
+      let currentOptions = [];
       // 若有指定測驗集參數，直接載入該測驗集
       const params = new URLSearchParams(window.location.search);
       const initSet = params.get('set');
@@ -121,54 +154,58 @@
       });
 
       socket.on('questionStarted', (data) => {
+        // show current question view
         currentContainer.style.display = 'block';
         answersList.innerHTML = '';
         fastestList.innerHTML = '';
-        if (chart) {
-          chart.destroy();
-          chart = null;
-        }
+        // save option labels and init chart data
+        currentOptions = data.options.slice();
+        const initCounts = currentOptions.map(() => 0);
+        // create or reset chart
+        if (chart) chart.destroy();
+        chart = new Chart(ctx, {
+          type: 'bar',
+          data: { labels: currentOptions, datasets: [{ label: 'Answers', data: initCounts, backgroundColor: 'rgba(75, 192, 192, 0.2)' }] },
+          options: { animation: { duration: 0 } }
+        });
+        // render question and options
         qText.textContent = data.question;
         optionsList.innerHTML = '';
-        data.options.forEach((opt) => {
-          const li = document.createElement('li');
-          li.textContent = opt;
-          optionsList.appendChild(li);
+        data.options.forEach(opt => {
+          const li = document.createElement('li'); li.textContent = opt; optionsList.appendChild(li);
         });
+        // timer
         let timeLeft = data.time;
         timeLeftSpan.textContent = timeLeft;
         clearInterval(timerInterval);
         timerInterval = setInterval(() => {
           timeLeft--;
           timeLeftSpan.textContent = timeLeft;
-          if (timeLeft <= 0) {
-            clearInterval(timerInterval);
-          }
+          if (timeLeft <= 0) clearInterval(timerInterval);
         }, 1000);
       });
 
       socket.on('studentAnswered', (data) => {
+        // append to answers list
         const li = document.createElement('li');
-        li.textContent = `${data.name} answered Option ${data.answerIndex + 1} (${data.correct ? 'correct' : 'wrong'}) in ${data.time}ms`;
+        li.textContent = `${data.name} answered "${currentOptions[data.answerIndex]}" (${data.correct ? 'correct' : 'wrong'}) in ${data.time}ms`;
         answersList.appendChild(li);
+        // update chart count
+        if (chart && chart.data.datasets[0].data[data.answerIndex] !== undefined) {
+          chart.data.datasets[0].data[data.answerIndex]++;
+          chart.update();
+        }
       });
 
       socket.on('questionEnded', ({ stats }) => {
+        // clear timer
         clearInterval(timerInterval);
-        if (chart) { chart.destroy(); }
-        const labels = Object.keys(stats.counts).map(i => 'Option ' + (parseInt(i) + 1));
-        const values = Object.values(stats.counts);
-        chart = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'Answers',
-              data: values,
-              backgroundColor: 'rgba(75, 192, 192, 0.2)'
-            }]
-          }
-        });
+        // sync final counts
+        if (chart) {
+          chart.data.datasets[0].data = currentOptions.map((_, i) => stats.counts[i] || 0);
+          chart.update();
+        }
+        // display fastest responders
         fastestList.innerHTML = '';
         stats.fastest.forEach(item => {
           const li = document.createElement('li');
@@ -188,11 +225,40 @@
       endActBtn.style.marginLeft = '8px';
       document.body.appendChild(endActBtn);
       endActBtn.addEventListener('click', () => {
-        // clear current activity in dashboard namespace
+        // notify default namespace to end activity
         defaultSocket.emit('endActivity');
-        // notify students in quiz namespace
+        // notify quiz-mc namespace to end activity
         socket.emit('endActivity');
+        // return to dashboard
         window.location.href = '/teacher';
+      });
+    })();
+  </script>
+  <!-- QR Code floating toggle -->
+  <button id="qr-btn">QR</button>
+  <div id="qr-panel">
+    <h3>學生登入 QR Code</h3>
+    <img id="qr-float-img" alt="QR Code" />
+  </div>
+  <script>
+    (function() {
+      const qrBtn = document.getElementById('qr-btn');
+      const qrPanel = document.getElementById('qr-panel');
+      let loaded = false;
+      qrBtn.addEventListener('click', () => {
+        if (qrPanel.style.display === 'block') {
+          qrPanel.style.display = 'none';
+        } else {
+          qrPanel.style.display = 'block';
+          if (!loaded) {
+            const loginURL = window.location.origin + '/student';
+            fetch('/api/qrcode?text=' + encodeURIComponent(loginURL))
+              .then(res => res.json())
+              .then(data => { document.getElementById('qr-float-img').src = data.dataUrl; })
+              .catch(console.error);
+            loaded = true;
+          }
+        }
       });
     })();
   </script>

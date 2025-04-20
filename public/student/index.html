@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Student Login</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
@@ -64,13 +65,24 @@
           localStorage.setItem('studentId', studentId);
         }
         localStorage.setItem('studentName', name);
-        const socket = io({ query: { role: 'student', studentId, name } });
+        const socket = io('/', { query: { role: 'student', studentId, name } });
+        // handle duplicate name rejection
+        socket.on('loginRejected', (msg) => {
+          alert(msg);
+          localStorage.removeItem('studentName');
+          socket.disconnect();
+        });
         socket.on('loginSuccess', () => {
           loginForm.style.display = 'none';
           waitingDiv.style.display = 'block';
         });
         socket.on('activityLaunched', data => {
           window.location.href = '/activities/' + data.activity + '/student.html';
+        });
+        // if teacher forces disconnection
+        socket.on('forcedDisconnect', (msg) => {
+          alert(msg || '已被教師移除，請重新登入');
+          window.location.href = '/student';
         });
       });
     })();

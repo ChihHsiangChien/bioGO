@@ -29,12 +29,30 @@ app.get('/api/qrcode', async (req, res) => {
 // Default namespace for login and dashboard
 // default namespace state
 const students = {}; // socket.id -> { studentId, name }
+// helper to send unique student list to teacherSocket
+function sendStudentList(sock) {
+  const all = Object.values(students);
+  const unique = [];
+  const seen = new Set();
+  all.forEach(s => {
+    if (!seen.has(s.studentId)) {
+      seen.add(s.studentId);
+      unique.push(s);
+    }
+  });
+  sock.emit('updateStudentList', unique);
+}
 let teacherSocket = null;
 let currentActivity = null;
 
 io.on('connection', (socket) => {
   const { role, studentId, name } = socket.handshake.query;
   if (role === 'student') {
+    // prevent duplicate names (unless reconnecting same studentId)
+    if (Object.values(students).some(s => s.name === name && s.studentId !== studentId)) {
+      socket.emit('loginRejected', '此名稱已被使用，請使用其他名稱');
+      return socket.disconnect(true);
+    }
     // track student and acknowledge login
     students[socket.id] = { studentId, name };
     socket.emit('loginSuccess', { studentId, name });
@@ -44,27 +62,46 @@ io.on('connection', (socket) => {
     }
     // update teacher about student list
     if (teacherSocket) {
-      teacherSocket.emit('updateStudentList', Object.values(students));
+      sendStudentList(teacherSocket);
     }
     socket.on('disconnect', () => {
       delete students[socket.id];
       if (teacherSocket) {
-        teacherSocket.emit('updateStudentList', Object.values(students));
+        sendStudentList(teacherSocket);
       }
     });
   } else if (role === 'teacher') {
     // default namespace teacher (dashboard)
     teacherSocket = socket;
-    socket.emit('updateStudentList', Object.values(students));
+    sendStudentList(socket);
     // teacher launches an activity
     socket.on('launchActivity', (activity) => {
       currentActivity = activity;
       socket.broadcast.emit('activityLaunched', { activity });
     });
+    // teacher removes a student (force re-login)
+    socket.on('removeStudent', (targetStudentId) => {
+      // find and disconnect matching student sockets
+      Object.entries(students).forEach(([sid, info]) => {
+        if (info.studentId === targetStudentId) {
+          const s = io.sockets.sockets.get(sid);
+          if (s) {
+            s.emit('forcedDisconnect', '已被教師移除，請重新登入');
+            s.disconnect(true);
+          }
+          delete students[sid];
+        }
+      });
+      // update teacher view
+      sendStudentList(socket);
+    });
     // teacher ends the current activity
     socket.on('endActivity', () => {
       currentActivity = null;
+      // notify students in default namespace
       socket.broadcast.emit('activityEnded');
+      // refresh teacher student list
+      sendStudentList(socket);
     });
     socket.on('disconnect', () => {
       teacherSocket = null;
@@ -109,7 +146,43 @@ app.get('/api/activities/:activity/sets', (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const os = require('os');
+const PORT = parseInt(process.env.PORT, 10) || 3000;
+
+// Handle listen errors (e.g., port in use) gracefully
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} 已被佔用，請先關閉舊程式，或設定環境變數 PORT 指定其他埠號`);
+    process.exit(1);
+  } else {
+    console.error(err);
+    process.exit(1);
+  }
+});
+
+// Start server
 server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
+  // Print accessible URLs
+  console.log('Teacher dashboard URLs:');
+  // Localhost
+  //console.log(`  http://localhost:${PORT}/teacher`);
+  // Network interfaces
+  const nets = os.networkInterfaces();
+  Object.values(nets).forEach(ifaces => {
+    ifaces.forEach(iface => {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        console.log(`  http://${iface.address}:${PORT}/teacher`);
+      }
+    });
+  });
+  console.log('Student login URLs:');
+  //console.log(`  http://localhost:${PORT}/student`);
+  Object.values(nets).forEach(ifaces => {
+    ifaces.forEach(iface => {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        console.log(`  http://${iface.address}:${PORT}/student`);
+      }
+    });
+  });
 });

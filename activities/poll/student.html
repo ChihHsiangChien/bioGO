@@ -3,14 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Quiz MC - Student</title>
+  <title>Poll - Student</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
     :root {
       --bg-color: #f5f7fa;
-      --primary-color: #2c3e50;
-      --secondary-color: #3498db;
       --text-color: #2c3e50;
+      --secondary-color: #3498db;
       --button-text: #ffffff;
     }
     body {
@@ -19,48 +18,50 @@
       background-color: var(--bg-color);
       color: var(--text-color);
     }
-    #question-container { display: none; }
-    #result-container { display: none; }
+    #poll-container, #result-container {
+      max-width: 600px;
+      margin: auto;
+    }
     button {
       background-color: var(--secondary-color);
       color: var(--button-text);
       border: none;
       border-radius: 4px;
-      margin: 4px 0;
       padding: 8px 16px;
+      margin: 4px 0;
       cursor: pointer;
+      display: block;
+      width: 100%;
     }
   </style>
 </head>
 <body>
-  <h1>Quiz MC - Student</h1>
+  <h1>Poll - Student</h1>
   <div id="waiting" style="text-align:center;">
-    <h2>等待老師開始問題...</h2>
+    <h2>等待老師開始投票...</h2>
   </div>
-  <div id="question-container" style="display:none;">
-    <h2 id="question-text"></h2>
-    <div id="options-container"></div>
-    <p>Time left: <span id="time-left"></span> seconds</p>
+  <div id="poll-container" style="display:none;">
+    <h2 id="poll-question"></h2>
+    <div id="poll-options"></div>
   </div>
-  <div id="result-container">
+  <div id="result-container" style="display:none;">
     <h2 id="result-text"></h2>
   </div>
   <script>
     (function(){
       const studentId = localStorage.getItem('studentId');
       const name = localStorage.getItem('studentName');
-      // ensure login flow
       if (!studentId || !name) {
         window.location.href = '/student';
         return;
       }
-      // connect to quiz namespace
-      const socket = io('/quiz-mc', { query: { role: 'student', studentId, name } });
+      // connect to poll namespace
+      const socket = io('/poll', { query: { role: 'student', studentId, name } });
       // maintain default namespace connection for activity control
       const defaultSocket = io('/', { query: { role: 'student', studentId, name } });
       // current activity namespace
-      const currentActivity = 'quiz-mc';
-      // handle teacher directing to new activity (only if different)
+      const currentActivity = 'poll';
+      // handle teacher launching new activity (only if different from current)
       defaultSocket.on('activityLaunched', data => {
         if (data.activity && data.activity !== currentActivity) {
           window.location.href = '/activities/' + data.activity + '/student.html';
@@ -71,58 +72,45 @@
         alert(msg || '已被教師移除，請重新登入');
         window.location.href = '/student';
       });
-      const questionContainer = document.getElementById('question-container');
-      const questionText = document.getElementById('question-text');
-      const optionsContainer = document.getElementById('options-container');
-      const timeLeftSpan = document.getElementById('time-left');
+      const pollContainer = document.getElementById('poll-container');
+      const questionEl = document.getElementById('poll-question');
+      const optionsEl = document.getElementById('poll-options');
       const resultContainer = document.getElementById('result-container');
       const resultText = document.getElementById('result-text');
-      let timerInterval = null;
 
-      socket.on('questionStarted', (data) => {
-        // show question, hide waiting and previous results
+      socket.on('pollStarted', (data) => {
+        // hide waiting and previous results
         document.getElementById('waiting').style.display = 'none';
         resultContainer.style.display = 'none';
-        questionContainer.style.display = 'block';
-        questionText.textContent = data.question;
-        optionsContainer.innerHTML = '';
+        pollContainer.style.display = 'block';
+        questionEl.textContent = data.question;
+        optionsEl.innerHTML = '';
         data.options.forEach((opt, idx) => {
           const btn = document.createElement('button');
           btn.textContent = opt;
           btn.addEventListener('click', () => {
-            socket.emit('submitAnswer', idx);
-            clearInterval(timerInterval);
+            socket.emit('submitVote', idx);
+            Array.from(optionsEl.querySelectorAll('button')).forEach(b => b.disabled = true);
           });
-          optionsContainer.appendChild(btn);
+          optionsEl.appendChild(btn);
         });
-        let timeLeft = data.time;
-        timeLeftSpan.textContent = timeLeft;
-        clearInterval(timerInterval);
-        timerInterval = setInterval(() => {
-          timeLeft--;
-          timeLeftSpan.textContent = timeLeft;
-          if (timeLeft <= 0) {
-            clearInterval(timerInterval);
-            [...optionsContainer.querySelectorAll('button')].forEach(b => b.disabled = true);
-          }
-        }, 1000);
       });
 
-      socket.on('answerReceived', () => {
-        // show result message, hide question
-        questionContainer.style.display = 'none';
-        resultText.textContent = 'Answer submitted';
+      socket.on('voteReceived', () => {
+        // hide poll, show result
+        pollContainer.style.display = 'none';
+        resultText.textContent = 'Vote received. Thank you!';
         resultContainer.style.display = 'block';
       });
 
-      socket.on('answerRejected', (msg) => {
+      socket.on('voteRejected', (msg) => {
         alert(msg);
       });
-      // if activity ends, return to login
+
       socket.on('activityEnded', () => {
         alert('Activity has ended. Returning to waiting...');
-        // hide question/result, show waiting
-        questionContainer.style.display = 'none';
+        // hide poll and result, show waiting
+        pollContainer.style.display = 'none';
         resultContainer.style.display = 'none';
         document.getElementById('waiting').style.display = 'block';
       });
