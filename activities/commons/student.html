@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tragedy of the Commons - Student</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+    #game, #result { max-width: 400px; margin: auto; display: none; }
+    input { width: 100px; }
+    button { margin: 8px; padding: 6px 12px; }
+  </style>
+</head>
+<body>
+  <h1>Tragedy of the Commons - Student</h1>
+  <div id="waiting">
+    <p>等待教師開始遊戲...</p>
+  </div>
+  <div id="game">
+    <p>Turn <span id="turn">0</span></p>
+    <p>Fish Pool: <span id="fishPool">0</span></p>
+    <p>Money: $<span id="money">0</span> Boat: <span id="boat">竹筏</span></p>
+    <p>Catch this turn: <input type="number" id="catchAmount" min="0" value="0" />
+       <button id="submitCatchBtn">Submit</button>
+    </p>
+  </div>
+  <div id="result">
+    <h2>Game Over</h2>
+    <table id="finalTable" border="1" style="margin:auto;"><tr><th>Name</th><th>TotalCatch</th><th>Money</th><th>Boat</th></tr></table>
+  </div>
+  <script>
+    (function(){
+      const studentId = localStorage.getItem('studentId');
+      const name = localStorage.getItem('studentName');
+      if (!studentId || !name) return location.href='/student';
+      const socket = io('/commons', { query: { role:'student', studentId, name } });
+      const waiting = document.getElementById('waiting');
+      const game = document.getElementById('game');
+      const result = document.getElementById('result');
+      const turnEl = document.getElementById('turn');
+      const fishPoolEl = document.getElementById('fishPool');
+      const moneyEl = document.getElementById('money');
+      const boatEl = document.getElementById('boat');
+      const catchInput = document.getElementById('catchAmount');
+      const submitCatchBtn = document.getElementById('submitCatchBtn');
+      const finalTable = document.getElementById('finalTable');
+
+      socket.on('loginSuccess', () => {});
+      socket.on('gameStarted', data => {
+        waiting.style.display='none'; game.style.display='block';
+        turnEl.textContent = 1;
+        fishPoolEl.textContent = data.fishPool;
+      });
+      socket.on('turnStarted', data => {
+        turnEl.textContent = data.turn;
+        if (data.fishPool!==undefined) fishPoolEl.textContent = data.fishPool;
+        catchInput.value = 0;
+        catchInput.max = data.config.boats[data.config.boatIndex||0]?.maxCatch || data.config.boats[0].maxCatch;
+      });
+      submitCatchBtn.addEventListener('click', () => {
+        const n = catchInput.value;
+        socket.emit('submitCatch', n);
+      });
+      socket.on('catchReceived', () => alert('Catch submitted'));
+      socket.on('turnEnded', res => {
+        if (res.fishPool!==undefined) fishPoolEl.textContent = res.fishPool;
+        // money and boat updated in defaultSocket? But simplified
+      });
+      socket.on('gameEnded', data => {
+        game.style.display='none'; result.style.display='block';
+        data.finalStats.forEach(s=>{
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${s.name}</td><td>${s.totalCatch}</td><td>${s.money}</td><td>${s.boat}</td>`;
+          finalTable.appendChild(tr);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

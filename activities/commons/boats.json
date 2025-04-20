@@ -1,0 +1,8 @@
+{
+  "boats": [
+    { "name": "竹筏", "price": 0, "maxCatch": 3 },
+    { "name": "小漁船", "price": 10, "maxCatch": 5 },
+    { "name": "中型拖網船", "price": 20, "maxCatch": 8 },
+    { "name": "大型船", "price": 50, "maxCatch": 12 }
+  ]
+}

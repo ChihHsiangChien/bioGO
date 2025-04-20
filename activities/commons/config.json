@@ -1,0 +1,8 @@
+{
+  "initialFish": 100,
+  "growthRate": 0.2,
+  "turnLimit": 10,
+  "turnDuration": 30,
+  "showRemainingFish": false,
+  "showTotalCatch": true
+}

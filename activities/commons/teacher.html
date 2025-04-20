@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Tragedy of the Commons - Teacher</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    label { display: block; margin: 8px 0 4px; }
+    input, select { width: 200px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: center; }
+    button { margin: 4px; padding: 6px 12px; }
+  </style>
+</head>
+<body>
+  <h1>Tragedy of the Commons - Teacher</h1>
+  <section id="config-section">
+    <h2>Game Configuration</h2>
+    <label>Initial Fish: <input type="number" id="initialFish" /></label>
+    <label>Growth Rate: <input type="number" step="0.01" id="growthRate" /></label>
+    <label>Turn Limit: <input type="number" id="turnLimit" /></label>
+    <label>Turn Duration (s): <input type="number" id="turnDuration" /></label>
+    <label><input type="checkbox" id="showRemainingFish"/> Show Remaining Fish</label>
+    <label><input type="checkbox" id="showTotalCatch"/> Show Total Catch</label>
+    <button id="set-config-btn">Set Config</button>
+    <button id="start-game-btn">Start Game</button>
+  </section>
+  <section id="game-section" style="display:none;">
+    <h2>Game Status</h2>
+    <p>Turn: <span id="turn-display">0</span>/<span id="turnLimit-display">0</span></p>
+    <p>Fish Pool: <span id="fishPool-display">0</span></p>
+    <button id="end-turn-btn">End Turn</button>
+    <button id="end-game-btn">End Game</button>
+    <h3>Students</h3>
+    <table>
+      <thead><tr><th>Name</th><th>Money</th><th>Boat</th><th>Last Catch</th></tr></thead>
+      <tbody id="students-table"></tbody>
+    </table>
+  </section>
+  <script>
+    (function() {
+      const socket = io('/commons', { query: { role: 'teacher' } });
+      // Config elements
+      const initialFish = document.getElementById('initialFish');
+      const growthRate = document.getElementById('growthRate');
+      const turnLimit = document.getElementById('turnLimit');
+      const turnDuration = document.getElementById('turnDuration');
+      const showRemainingFish = document.getElementById('showRemainingFish');
+      const showTotalCatch = document.getElementById('showTotalCatch');
+      const setConfigBtn = document.getElementById('set-config-btn');
+      const startGameBtn = document.getElementById('start-game-btn');
+      const configSection = document.getElementById('config-section');
+      const gameSection = document.getElementById('game-section');
+      const turnDisplay = document.getElementById('turn-display');
+      const turnLimitDisplay = document.getElementById('turnLimit-display');
+      const fishPoolDisplay = document.getElementById('fishPool-display');
+      const studentsTable = document.getElementById('students-table');
+      const endTurnBtn = document.getElementById('end-turn-btn');
+      const endGameBtn = document.getElementById('end-game-btn');
+
+      // Set config
+      socket.on('config', cfg => {
+        initialFish.value = cfg.initialFish;
+        growthRate.value = cfg.growthRate;
+        turnLimit.value = cfg.turnLimit;
+        turnDuration.value = cfg.turnDuration;
+        showRemainingFish.checked = cfg.showRemainingFish;
+        showTotalCatch.checked = cfg.showTotalCatch;
+        turnLimitDisplay.textContent = cfg.turnLimit;
+      });
+      setConfigBtn.addEventListener('click', () => {
+        const cfg = {
+          initialFish: parseInt(initialFish.value,10),
+          growthRate: parseFloat(growthRate.value),
+          turnLimit: parseInt(turnLimit.value,10),
+          turnDuration: parseInt(turnDuration.value,10),
+          showRemainingFish: showRemainingFish.checked,
+          showTotalCatch: showTotalCatch.checked
+        };
+        socket.emit('setConfig', cfg);
+      });
+      // Start game
+      startGameBtn.addEventListener('click', () => {
+        socket.emit('startGame');
+      });
+      // Updates
+      socket.on('gameStarted', data => {
+        configSection.style.display = 'none';
+        gameSection.style.display = 'block';
+        fishPoolDisplay.textContent = data.fishPool;
+      });
+      socket.on('turnStarted', data => {
+        turnDisplay.textContent = data.turn;
+        if (data.fishPool !== undefined) fishPoolDisplay.textContent = data.fishPool;
+      });
+      socket.on('turnEnded', res => {
+        if (res.fishPool !== undefined) fishPoolDisplay.textContent = res.fishPool;
+        // update student rows
+        studentsTable.innerHTML = '';
+        res.stats.forEach(s => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${s.name}</td><td>${s.money}</td><td>${s.boat || ''}</td><td>${s.catch}</td>`;
+          studentsTable.appendChild(tr);
+        });
+      });
+      socket.on('updateStudentList', st => {
+        // reflect student list
+        studentsTable.innerHTML = '';
+        st.students.forEach(s => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${s.name}</td><td>${s.money}</td><td>${s.boat}</td><td>${s.lastCatch}</td>`;
+          studentsTable.appendChild(tr);
+        });
+      });
+      // Control buttons
+      endTurnBtn.addEventListener('click', () => socket.emit('endTurn'));
+      endGameBtn.addEventListener('click', () => socket.emit('endGame'));
+    })();
+  </script>
+</body>
+</html>
