@@ -44,26 +44,50 @@ module.exports = function(nsp) {
 
   function endTurn() {
     if (timer) clearTimeout(timer);
-    // compute total catch
-    let totalCatch = 0;
-    Object.values(students).forEach(s => { totalCatch += s.catchThisTurn; });
+    // compute total planned catch
+    let totalPlanned = 0;
+    Object.values(students).forEach(s => { totalPlanned += s.catchThisTurn; });
+    // determine actual catches
+    const actualCatches = {};
+    if (totalPlanned <= fishPool) {
+      Object.values(students).forEach(s => {
+        actualCatches[s.studentId] = s.catchThisTurn;
+      });
+    } else {
+      // proportionally allocate
+      Object.values(students).forEach(s => {
+        const prop = s.catchThisTurn / totalPlanned;
+        actualCatches[s.studentId] = Math.floor(prop * fishPool);
+      });
+    }
+    // sum actual
+    const totalActual = Object.values(actualCatches).reduce((a,b) => a + b, 0);
     // update fish pool with depletion and growth
-    const remaining = Math.max(0, fishPool - totalCatch);
+    const remaining = Math.max(0, fishPool - totalActual);
     fishPool = remaining + Math.round(remaining * gameConfig.growthRate);
     // update student money and totals
     Object.values(students).forEach(s => {
-      s.money += s.catchThisTurn;
-      s.totalCatch += s.catchThisTurn;
+      const actual = actualCatches[s.studentId] || 0;
+      s.money += actual;
+      s.totalCatch += actual;
+      s.catchThisTurn = actual; // overwrite to actual for reporting
     });
     // prepare stats per student
-    const stats = Object.values(students).map(s => ({ studentId: s.studentId, name: s.name, catch: s.catchThisTurn, money: s.money, totalCatch: s.totalCatch }));
+    const stats = Object.values(students).map(s => ({ studentId: s.studentId, name: s.name, planned: s.catchThisTurn, actual: s.catchThisTurn, money: s.money, boat: boatsConfig[s.boatIndex].name }));
     // broadcast turn result
-    nsp.emit('turnEnded', { turn, fishPool: gameConfig.showRemainingFish ? fishPool : undefined, totalCatch: gameConfig.showTotalCatch ? totalCatch : undefined, stats });
+    nsp.emit('turnEnded', {
+      turn,
+      fishPool: gameConfig.showRemainingFish ? fishPool : undefined,
+      totalPlanned: gameConfig.showTotalCatch ? totalPlanned : undefined,
+      totalActual: gameConfig.showTotalCatch ? totalActual : undefined,
+      stats
+    });
     sendStudentList();
     // next or end game
     if (turn < gameConfig.turnLimit) {
       turn++;
-      // teacher or client must call start next turn via UI
+      // automatically start next turn
+      startTurn();
     } else {
       // game over
       nsp.emit('gameEnded', { finalStats: stats, fishPool });
@@ -80,6 +104,8 @@ module.exports = function(nsp) {
       socket.on('setConfig', config => {
         gameConfig = { ...defaultConfig, ...config };
         socket.emit('config', gameConfig);
+        // notify students of config change mid-game
+        nsp.emit('configChanged', gameConfig);
       });
       // teacher starts game
       socket.on('startGame', () => {
@@ -92,7 +118,12 @@ module.exports = function(nsp) {
           s.totalCatch = 0;
           s.catchThisTurn = 0;
         });
-        nsp.emit('gameStarted', { config: gameConfig, fishPool });
+        console.log('[Commons] startGame received, broadcasting gameStarted to students');
+        // broadcast game start including boats info
+        nsp.emit('gameStarted', { config: gameConfig, fishPool, boats: boatsConfig });
+        // notify waiting students (default namespace) to join commons activity
+        const io = nsp.server;
+        io.of('/').emit('activityLaunched', { activity: 'commons' });
         sendStudentList();
         startTurn();
       });
@@ -117,6 +148,10 @@ module.exports = function(nsp) {
         const amt = Math.min(Math.max(0, parseInt(n,10)), max);
         s.catchThisTurn = amt;
         socket.emit('catchReceived', amt);
+        // notify teacher of planned catch
+        if (teacherSocket) {
+          teacherSocket.emit('studentPlanned', { studentId: s.studentId, name: s.name, planned: amt });
+        }
       });
       socket.on('upgradeBoat', idx => {
         const s = students[socket.id];

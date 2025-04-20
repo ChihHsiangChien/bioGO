@@ -132,6 +132,25 @@
       const statsContainer = document.getElementById('stats-container');
       const statsList = document.getElementById('stats-list');
       const toggleStatsBtn = document.getElementById('toggle-stats-btn');
+      // bind toggle handlers early
+      toggleResponsesBtn.addEventListener('click', () => {
+        if (responsesContainer.style.display === 'none') {
+          responsesContainer.style.display = 'block';
+          toggleResponsesBtn.textContent = 'Hide Responses';
+        } else {
+          responsesContainer.style.display = 'none';
+          toggleResponsesBtn.textContent = 'Show Responses';
+        }
+      });
+      toggleStatsBtn.addEventListener('click', () => {
+        if (statsContainer.style.display === 'none') {
+          statsContainer.style.display = 'block';
+          toggleStatsBtn.textContent = 'Hide Statistics';
+        } else {
+          statsContainer.style.display = 'none';
+          toggleStatsBtn.textContent = 'Show Statistics';
+        }
+      });
       const endPollBtn = document.getElementById('end-poll-btn');
       const backBtn = document.getElementById('back-dashboard-btn');
       let counts = [];
@@ -204,26 +223,6 @@
           statsList.appendChild(li);
         });
       }
-      // Toggle Responses pane
-      toggleResponsesBtn.addEventListener('click', () => {
-        if (responsesContainer.style.display === 'none') {
-          responsesContainer.style.display = 'block';
-          toggleResponsesBtn.textContent = 'Hide Responses';
-        } else {
-          responsesContainer.style.display = 'none';
-          toggleResponsesBtn.textContent = 'Show Responses';
-        }
-      });
-      // Toggle Statistics pane
-      toggleStatsBtn.addEventListener('click', () => {
-        if (statsContainer.style.display === 'none') {
-          statsContainer.style.display = 'block';
-          toggleStatsBtn.textContent = 'Hide Statistics';
-        } else {
-          statsContainer.style.display = 'none';
-          toggleStatsBtn.textContent = 'Show Statistics';
-        }
-      });
 
       endPollBtn.addEventListener('click', () => {
         socket.emit('endPoll');

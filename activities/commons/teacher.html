@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8" />
-  <title>Tragedy of the Commons - Teacher</title>
-  <script src="/socket.io/socket.io.js"></script>
-  <style>
+  <head>
+    <meta charset="utf-8" />
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
     label { display: block; margin: 8px 0 4px; }
     input, select { width: 200px; }
@@ -28,15 +28,20 @@
   </section>
   <section id="game-section" style="display:none;">
     <h2>Game Status</h2>
+    <!-- Toggle visibility settings -->
+    <label><input type="checkbox" id="toggleShowFish"> Show Remaining Fish to Students</label>
+    <label><input type="checkbox" id="toggleShowCatch"> Show Total Catch to Students</label>
     <p>Turn: <span id="turn-display">0</span>/<span id="turnLimit-display">0</span></p>
     <p>Fish Pool: <span id="fishPool-display">0</span></p>
     <button id="end-turn-btn">End Turn</button>
     <button id="end-game-btn">End Game</button>
     <h3>Students</h3>
     <table>
-      <thead><tr><th>Name</th><th>Money</th><th>Boat</th><th>Last Catch</th></tr></thead>
+      <thead><tr><th>Name</th><th>Money</th><th>Boat</th><th>Planned</th><th>Actual</th></tr></thead>
       <tbody id="students-table"></tbody>
     </table>
+    <h3>Fish Pool Over Time</h3>
+    <canvas id="fishChart" width="400" height="200"></canvas>
   </section>
   <script>
     (function() {
@@ -58,6 +63,20 @@
       const studentsTable = document.getElementById('students-table');
       const endTurnBtn = document.getElementById('end-turn-btn');
       const endGameBtn = document.getElementById('end-game-btn');
+      const toggleShowFish = document.getElementById('toggleShowFish');
+      const toggleShowCatch = document.getElementById('toggleShowCatch');
+      // sync toggles when config received
+      socket.on('config', cfg => {
+        toggleShowFish.checked = cfg.showRemainingFish;
+        toggleShowCatch.checked = cfg.showTotalCatch;
+      });
+      // handle toggle changes
+      toggleShowFish.addEventListener('change', () => {
+        socket.emit('setConfig', { showRemainingFish: toggleShowFish.checked });
+      });
+      toggleShowCatch.addEventListener('change', () => {
+        socket.emit('setConfig', { showTotalCatch: toggleShowCatch.checked });
+      });
 
       // Set config
       socket.on('config', cfg => {
@@ -68,6 +87,25 @@
         showRemainingFish.checked = cfg.showRemainingFish;
         showTotalCatch.checked = cfg.showTotalCatch;
         turnLimitDisplay.textContent = cfg.turnLimit;
+        // hide fish pool and chart if disabled
+        const fishLine = document.getElementById('fish-pool-section');
+        const fishCanvas = document.getElementById('fishChart');
+        if (!cfg.showRemainingFish) {
+          fishLine.style.display = 'none';
+          fishCanvas.style.display = 'none';
+        } else {
+          fishLine.style.display = 'block';
+          fishCanvas.style.display = 'block';
+        }
+        // hide planned/actual columns if disabled
+        const ths = document.querySelectorAll('#game-section table thead th');
+        if (!cfg.showTotalCatch) {
+          ths[3].style.display = 'none';
+          ths[4].style.display = 'none';
+        } else {
+          ths[3].style.display = '';
+          ths[4].style.display = '';
+        }
       });
       setConfigBtn.addEventListener('click', () => {
         const cfg = {
@@ -85,22 +123,46 @@
         socket.emit('startGame');
       });
       // Updates
+      let fishChart = null;
+      let fishData = [];
+      let fishLabels = [];
       socket.on('gameStarted', data => {
         configSection.style.display = 'none';
         gameSection.style.display = 'block';
         fishPoolDisplay.textContent = data.fishPool;
+        // init chart
+        const ctx = document.getElementById('fishChart').getContext('2d');
+        fishData = [data.fishPool];
+        fishLabels = ['Turn 1'];
+        fishChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: fishLabels,
+            datasets: [{ label: 'Fish Pool', data: fishData, borderColor: 'blue', fill: false }]
+          },
+          options: { scales: { y: { beginAtZero: true } } }
+        });
       });
       socket.on('turnStarted', data => {
         turnDisplay.textContent = data.turn;
         if (data.fishPool !== undefined) fishPoolDisplay.textContent = data.fishPool;
+        // update chart on turn start
+        if (fishChart) {
+          const label = `Turn ${data.turn}`;
+          fishChart.data.labels.push(label);
+          fishChart.data.datasets[0].data.push(data.fishPool);
+          fishChart.update();
+        }
       });
       socket.on('turnEnded', res => {
-        if (res.fishPool !== undefined) fishPoolDisplay.textContent = res.fishPool;
+        if (res.fishPool !== undefined) {
+          fishPoolDisplay.textContent = res.fishPool;
+        }
         // update student rows
         studentsTable.innerHTML = '';
         res.stats.forEach(s => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${s.name}</td><td>${s.money}</td><td>${s.boat || ''}</td><td>${s.catch}</td>`;
+          tr.innerHTML = `<td>${s.name}</td><td>${s.money}</td><td>${s.boat}</td><td>${s.planned}</td><td>${s.actual}</td>`;
           studentsTable.appendChild(tr);
         });
       });
@@ -109,9 +171,28 @@
         studentsTable.innerHTML = '';
         st.students.forEach(s => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${s.name}</td><td>${s.money}</td><td>${s.boat}</td><td>${s.lastCatch}</td>`;
+          tr.setAttribute('data-studentid', s.studentId);
+          tr.style.backgroundColor = '#f8d7da'; // pending color
+          tr.innerHTML = `
+            <td>${s.name}</td>
+            <td>${s.money}</td>
+            <td>${s.boat}</td>
+            <td>-</td>
+            <td>-</td>
+          `;
           studentsTable.appendChild(tr);
         });
+      });
+      // handle student plan submissions
+      socket.on('studentPlanned', ({ studentId, name, planned }) => {
+        const tr = document.querySelector(`tr[data-studentid="${studentId}"]`);
+        if (tr) {
+          // update planned column (4th cell, index 3)
+          const cells = tr.querySelectorAll('td');
+          if (cells[3]) cells[3].textContent = planned;
+          // highlight row
+          tr.style.backgroundColor = '#d4edda';
+        }
       });
       // Control buttons
       endTurnBtn.addEventListener('click', () => socket.emit('endTurn'));

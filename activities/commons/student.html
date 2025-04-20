@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Tragedy of the Commons - Student</title>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
     #game, #result { max-width: 400px; margin: auto; display: none; }
@@ -19,15 +20,21 @@
   </div>
   <div id="game">
     <p>Turn <span id="turn">0</span></p>
-    <p>Fish Pool: <span id="fishPool">0</span></p>
+    <p id="fish-pool-section">Fish Pool: <span id="fishPool">0</span></p>
     <p>Money: $<span id="money">0</span> Boat: <span id="boat">竹筏</span></p>
     <p>Catch this turn: <input type="number" id="catchAmount" min="0" value="0" />
        <button id="submitCatchBtn">Submit</button>
     </p>
+    <div id="upgrade-section">
+      <h3>Upgrade Boat</h3>
+      <ul id="boat-list"></ul>
+    </div>
   </div>
   <div id="result">
     <h2>Game Over</h2>
     <table id="finalTable" border="1" style="margin:auto;"><tr><th>Name</th><th>TotalCatch</th><th>Money</th><th>Boat</th></tr></table>
+    <h3>Fish Pool Over Time</h3>
+    <canvas id="fishChart" width="400" height="200" style="margin:auto;"></canvas>
   </div>
   <script>
     (function(){
@@ -35,6 +42,15 @@
       const name = localStorage.getItem('studentName');
       if (!studentId || !name) return location.href='/student';
       const socket = io('/commons', { query: { role:'student', studentId, name } });
+      console.log('[Commons] Student namespace socket connected');
+      // state
+      let boats = [];
+      let currentBoatIndex = 0;
+      let money = 0;
+      // chart data
+      let fishChart = null;
+      let fishData = [];
+      let fishLabels = [];
       const waiting = document.getElementById('waiting');
       const game = document.getElementById('game');
       const result = document.getElementById('result');
@@ -48,24 +64,112 @@
 
       socket.on('loginSuccess', () => {});
       socket.on('gameStarted', data => {
-        waiting.style.display='none'; game.style.display='block';
+        console.log('[Commons] gameStarted event data:', data);
+        waiting.style.display = 'none';
+        game.style.display = 'block';
+        // show/hide fish pool based on teacher permission
+        const cfg = data.config || {};
+        const fishSection = document.getElementById('fish-pool-section');
+        const fishCanvas = document.getElementById('fishChart');
+        if (cfg.showRemainingFish) {
+          fishSection.style.display = 'block';
+          fishCanvas.style.display = 'block';
+          fishPoolEl.textContent = data.fishPool;
+        } else {
+          fishSection.style.display = 'none';
+          fishCanvas.style.display = 'none';
+        }
+        // initialize state and boats
+        boats = data.boats || [];
+        money = 0;
+        currentBoatIndex = 0;
+        boatEl.textContent = boats[0]?.name || '';
+        moneyEl.textContent = money;
+        catchInput.max = boats[0]?.maxCatch || 0;
+        // init turn
         turnEl.textContent = 1;
-        fishPoolEl.textContent = data.fishPool;
+        // init boats list for upgrade
+        const boatList = document.getElementById('boat-list');
+        boatList.innerHTML = '';
+        boats.forEach((b, i) => {
+          const li = document.createElement('li');
+          const btn = document.createElement('button');
+          btn.textContent = `Buy ${b.name} ($${b.price})`;
+          btn.disabled = true;
+          btn.addEventListener('click', () => socket.emit('upgradeBoat', i));
+          li.textContent = `${b.name} - MaxCatch: ${b.maxCatch}`;
+          li.appendChild(btn);
+          boatList.appendChild(li);
+        });
+        // init fish chart
+        const ctx = document.getElementById('fishChart').getContext('2d');
+        fishData = [data.fishPool]; fishLabels = ['Turn 1'];
+        fishChart = new Chart(ctx, { type: 'line', data: { labels: fishLabels, datasets: [{ label: 'Fish Pool', data: fishData, borderColor: 'green', fill: false }] }, options: { scales: { y: { beginAtZero: true } } } });
       });
       socket.on('turnStarted', data => {
         turnEl.textContent = data.turn;
         if (data.fishPool!==undefined) fishPoolEl.textContent = data.fishPool;
         catchInput.value = 0;
-        catchInput.max = data.config.boats[data.config.boatIndex||0]?.maxCatch || data.config.boats[0].maxCatch;
+        // update upgrade buttons
+        const boatItems = document.querySelectorAll('#boat-list li');
+        boats.forEach((b, i) => {
+          const btn = boatItems[i].querySelector('button');
+          btn.disabled = money < b.price;
+        });
+        // update boat and money display
+        moneyEl.textContent = money;
+        boatEl.textContent = boats[currentBoatIndex].name;
       });
       submitCatchBtn.addEventListener('click', () => {
         const n = catchInput.value;
         socket.emit('submitCatch', n);
       });
       socket.on('catchReceived', () => alert('Catch submitted'));
+      // handle upgrade success/failure
+      socket.on('upgradeSuccess', res => {
+        money = res.money;
+        currentBoatIndex = boats.findIndex(b => b.name === res.boat);
+        boatEl.textContent = res.boat;
+        moneyEl.textContent = money;
+        alert(`Upgraded to ${res.boat}`);
+        // update catch limit based on new boat
+        catchInput.max = boats[currentBoatIndex].maxCatch;
+      });
+      socket.on('upgradeFailed', msg => alert(msg));
       socket.on('turnEnded', res => {
-        if (res.fishPool!==undefined) fishPoolEl.textContent = res.fishPool;
-        // money and boat updated in defaultSocket? But simplified
+        if (res.fishPool !== undefined) {
+          fishPoolEl.textContent = res.fishPool;
+          // chart update
+          fishLabels.push(`Turn ${res.turn}`);
+          fishData.push(res.fishPool);
+          fishChart.update();
+        }
+        // update money and boat display
+        const me = res.stats.find(s => s.studentId === studentId);
+        if (me) {
+          money = me.money;
+          moneyEl.textContent = money;
+          currentBoatIndex = boats.findIndex(b => b.name === me.boat);
+          boatEl.textContent = me.boat;
+          // update upgrade buttons
+          const boatItems = document.querySelectorAll('#boat-list li');
+          boats.forEach((b, i) => {
+            const btn = boatItems[i].querySelector('button');
+            btn.disabled = money < b.price;
+          });
+        }
+      });
+      // react to mid-game config changes
+      socket.on('configChanged', cfg => {
+        const fishSection = document.getElementById('fish-pool-section');
+        const fishCanvas = document.getElementById('fishChart');
+        if (cfg.showRemainingFish) {
+          fishSection.style.display = 'block';
+          fishCanvas.style.display = 'block';
+        } else {
+          fishSection.style.display = 'none';
+          fishCanvas.style.display = 'none';
+        }
       });
       socket.on('gameEnded', data => {
         game.style.display='none'; result.style.display='block';
@@ -74,6 +178,7 @@
           tr.innerHTML = `<td>${s.name}</td><td>${s.totalCatch}</td><td>${s.money}</td><td>${s.boat}</td>`;
           finalTable.appendChild(tr);
         });
+        // chart already exists with data
       });
     })();
   </script>
