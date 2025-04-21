@@ -47,6 +47,7 @@ module.exports = function(nsp) {
     // compute total planned catch
     let totalPlanned = 0;
     Object.values(students).forEach(s => { totalPlanned += s.catchThisTurn; });
+
     // determine actual catches
     const actualCatches = {};
     if (totalPlanned <= fishPool) {

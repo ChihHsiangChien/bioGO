@@ -168,21 +168,36 @@ server.listen(PORT, () => {
   // Localhost
   //console.log(`  http://localhost:${PORT}/teacher`);
   // Network interfaces
+
+  
   const nets = os.networkInterfaces();
-  Object.values(nets).forEach(ifaces => {
+  // console.log('DEBUG 所有網卡:');
+  // console.log(nets);
+  
+  function isPrivateIP(ip) {
+    return (
+      ip.startsWith('10.') ||
+      ip.startsWith('192.168.') ||
+      (ip.startsWith('172.') && (() => {
+        const second = parseInt(ip.split('.')[1], 10);
+        return second >= 16 && second <= 31;
+      })())
+    );
+  }
+  
+  Object.entries(nets).forEach(([name, ifaces]) => {
+    // 過濾掉不想要的介面卡（例如 WSL）
+    const lname = name.toLowerCase();
+    const isLikelyReal =
+      lname.includes('wi-fi') || lname.includes('wlan') || lname.includes('ethernet');
+    if (!isLikelyReal) return;
+  
     ifaces.forEach(iface => {
-      if (iface.family === 'IPv4' && !iface.internal) {
+      if (iface.family === 'IPv4' && !iface.internal && isPrivateIP(iface.address)) {
         console.log(`  http://${iface.address}:${PORT}/teacher`);
-      }
-    });
-  });
-  console.log('Student login URLs:');
-  //console.log(`  http://localhost:${PORT}/student`);
-  Object.values(nets).forEach(ifaces => {
-    ifaces.forEach(iface => {
-      if (iface.family === 'IPv4' && !iface.internal) {
         console.log(`  http://${iface.address}:${PORT}/student`);
       }
     });
   });
+
 });
