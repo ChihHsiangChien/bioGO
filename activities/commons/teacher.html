@@ -1,49 +1,163 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Tragedy of the Commons - Teacher</title>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Tragedy of the Commons - Teacher</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
     /* ... styles ... */
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    h1, h2, h3 { text-align: center; margin-bottom: 1em;}
-    section { border: 1px solid #eee; padding: 15px; margin-bottom: 20px; border-radius: 5px; background-color: #f9f9f9; }
-    .control-panel { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px; }
-    .input-group { display: flex; align-items: center; gap: 10px; padding: 5px; }
-    .input-group label { min-width: 160px; font-weight: bold; text-align: right; }
-    input[type="number"] { width: 80px; padding: 5px; border: 1px solid #ccc; border-radius: 3px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 10px; background-color: #fff; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-    th { background-color: #e9ecef; }
-    .status-pending { background-color: #fff3cd; color: #856404; }
-    .status-submitted { background-color: #d4edda; color: #155724; }
-    button { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; background-color: #007bff; color: white; font-size: 1em; margin: 5px; }
-    button:disabled { background-color: #ccc; cursor: not-allowed; }
-    .toggle-btn { background-color: #6c757d; width: 100%; text-align: center; }
-    .toggle-btn.active { background-color: #28a745; }
-    .action-buttons { text-align: center; margin-top: 20px; }
-    .chart-container { margin-top: 20px; height: 300px; background-color: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      text-align: center;
+      margin-bottom: 1em;
+    }
+
+    section {
+      border: 1px solid #eee;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+    }
+
+    .control-panel {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .input-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 5px;
+    }
+
+    .input-group label {
+      min-width: 160px;
+      font-weight: bold;
+      text-align: right;
+    }
+
+    input[type="number"] {
+      width: 80px;
+      padding: 5px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 10px;
+      background-color: #fff;
+    }
+
+    th,
+    td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #e9ecef;
+    }
+
+    .status-pending {
+      background-color: #fff3cd;
+      color: #856404;
+    }
+
+    .status-submitted {
+      background-color: #d4edda;
+      color: #155724;
+    }
+
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background-color: #007bff;
+      color: white;
+      font-size: 1em;
+      margin: 5px;
+    }
+
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    .toggle-btn {
+      background-color: #6c757d;
+      width: 100%;
+      text-align: center;
+    }
+
+    .toggle-btn.active {
+      background-color: #28a745;
+    }
+
+    .action-buttons {
+      text-align: center;
+      margin-top: 20px;
+    }
+
+    .chart-container {
+      margin-top: 20px;
+      height: 300px;
+      background-color: #fff;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
     /* Visibility Note: #students-section and #chart-section are inside #game-section. */
     /* #game-section starts hidden and is shown on 'gameStarted'. */
     /* #students-section and #chart-section do NOT have display:none, so they show when #game-section shows. */
-    .input-group button { padding: 5px 10px; font-size: 0.9em; background-color: #ffc107; color: black; }
-    </style>
-  </head>
+    .input-group button {
+      padding: 5px 10px;
+      font-size: 0.9em;
+      background-color: #ffc107;
+      color: black;
+    }
+  </style>
+</head>
+
 <body>
   <h1>Tragedy of the Commons - Teacher</h1>
 
   <section id="config-section">
     <!-- ... config inputs and toggles ... -->
-     <h2>Game Configuration</h2>
+    <h2>Game Configuration</h2>
     <div class="control-panel">
-      <div class="input-group"> <label for="initialFish">Initial Fish in Pool:</label> <input type="number" id="initialFish" value="100" min="0" /> </div>
-      <div class="input-group"> <label for="growthRate">Growth Rate (%):</label> <input type="number" id="growthRate" value="20" min="0" step="1" /> </div>
-      <div class="input-group"> <label for="minFishPerFamily">Minimum Fish per Family:</label> <input type="number" id="minFishPerFamily" value="2" min="0" /> </div>
-      <div class="input-group"> <label for="fishPrice">Fish Price ($):</label> <input type="number" id="fishPrice" value="10" min="0" /> </div>
-      <div class="input-group"> <label>Student Matrix Visible (to Students):</label> <button id="toggle-matrix-btn-config" class="toggle-btn">OFF</button> </div>
-      <div class="input-group"> <label>Fish Chart Visible (to Students):</label> <button id="toggle-fish-chart-btn-config" class="toggle-btn">OFF</button> </div>
+      <div class="input-group"> <label for="initialFish">Initial Fish in Pool:</label> <input type="number"
+          id="initialFish" value="100" min="0" /> </div>
+      <div class="input-group"> <label for="growthRate">Growth Rate (%):</label> <input type="number" id="growthRate"
+          value="20" min="0" step="1" /> </div>
+      <div class="input-group"> <label for="minFishPerFamily">Minimum Fish per Family:</label> <input type="number"
+          id="minFishPerFamily" value="2" min="0" /> </div>
+      <div class="input-group"> <label for="fishPrice">Fish Price ($):</label> <input type="number" id="fishPrice"
+          value="10" min="0" /> </div>
+      <div class="input-group">
+        <label for="minFishPerFamily">Minimum Fish per Family:</label>
+        <input type="number" id="minFishPerFamily" value="2" min="0" />
+      </div>
+      <div class="input-group"> <label>Student Matrix Visible (to Students):</label> <button
+          id="toggle-matrix-btn-config" class="toggle-btn">OFF</button> </div>
+      <div class="input-group"> <label>Fish Chart Visible (to Students):</label> <button
+          id="toggle-fish-chart-btn-config" class="toggle-btn">OFF</button> </div>
     </div>
     <div class="action-buttons"> <button id="start-game-btn">Start Game</button> </div>
   </section>
@@ -53,12 +167,18 @@
     <h2>Game Control Panel (Turn: <span id="current-turn">0</span>)</h2>
     <div class="control-panel">
       <!-- ... game controls ... -->
-       <div class="input-group"> <label for="currentFish">Current Fish in Pool:</label> <input type="number" id="currentFish" min="0" /> </div>
-       <div class="input-group"> <label for="currentGrowthRate">Current Growth Rate (%):</label> <input type="number" id="currentGrowthRate" min="0" step="1" /> </div>
-       <div class="input-group"> <label for="currentFishPrice">Current Fish Price ($):</label> <input type="number" id="currentFishPrice" min="0" /> </div>
-       <div class="input-group"> <label>Update Live Values:</label> <button id="update-live-btn">Update Pool/Rate/Price</button> </div>
-       <div class="input-group"> <label>Toggle Student Matrix (for Students):</label> <button id="toggle-matrix-btn-game" class="toggle-btn">Show Student Matrix</button> </div>
-       <div class="input-group"> <label>Toggle Fish Chart (for Students):</label> <button id="toggle-fish-chart-btn-game" class="toggle-btn">Show Fish Chart</button> </div>
+      <div class="input-group"> <label for="currentFish">Current Fish in Pool:</label> <input type="number"
+          id="currentFish" min="0" /> </div>
+      <div class="input-group"> <label for="currentGrowthRate">Current Growth Rate (%):</label> <input type="number"
+          id="currentGrowthRate" min="0" step="1" /> </div>
+      <div class="input-group"> <label for="currentFishPrice">Current Fish Price ($):</label> <input type="number"
+          id="currentFishPrice" min="0" /> </div>
+      <div class="input-group"> <label>Update Live Values:</label> <button id="update-live-btn">Update
+          Pool/Rate/Price</button> </div>
+      <div class="input-group"> <label>Toggle Student Matrix (for Students):</label> <button id="toggle-matrix-btn-game"
+          class="toggle-btn">Show Student Matrix</button> </div>
+      <div class="input-group"> <label>Toggle Fish Chart (for Students):</label> <button id="toggle-fish-chart-btn-game"
+          class="toggle-btn">Show Fish Chart</button> </div>
     </div>
     <div class="action-buttons">
       <button id="end-turn-btn">End Turn</button>
@@ -70,7 +190,13 @@
       <h3>Student Status</h3>
       <table>
         <thead>
-          <tr> <th>Name</th> <th>Status (This Turn)</th> <th>Requested Catch</th> <th>Actual Catch (This Turn)</th> <th>Money</th> </tr>
+          <tr>
+            <th>Name</th>
+            <th>Status (This Turn)</th>
+            <th>Requested Catch</th>
+            <th>Actual Catch (This Turn)</th>
+            <th>Money</th>
+          </tr>
         </thead>
         <tbody id="students-table"></tbody> <!-- ID is here -->
       </table>
@@ -84,7 +210,7 @@
   </section>
 
   <script>
-    (function() {
+    (function () {
       const socket = io('/commons', { query: { role: 'teacher' } });
       console.log('[Commons Teacher] Connecting...');
       // DOM Elements
@@ -122,56 +248,56 @@
 
       // --- Helper Functions ---
       function updateToggleButtons(matrixVisible, chartVisible) {
-          showMatrixForStudents = matrixVisible; showFishChartForStudents = chartVisible;
-          toggleMatrixBtnConfig.classList.toggle('active', showMatrixForStudents); toggleMatrixBtnConfig.textContent = showMatrixForStudents ? 'ON' : 'OFF';
-          toggleFishChartBtnConfig.classList.toggle('active', showFishChartForStudents); toggleFishChartBtnConfig.textContent = showFishChartForStudents ? 'ON' : 'OFF';
-          toggleMatrixBtnGame.classList.toggle('active', showMatrixForStudents); toggleMatrixBtnGame.textContent = showMatrixForStudents ? 'Hide Student Matrix (from Students)' : 'Show Student Matrix (to Students)';
-          toggleFishChartBtnGame.classList.toggle('active', showFishChartForStudents); toggleFishChartBtnGame.textContent = showFishChartForStudents ? 'Hide Fish Chart (from Students)' : 'Show Fish Chart (to Students)';
+        showMatrixForStudents = matrixVisible; showFishChartForStudents = chartVisible;
+        toggleMatrixBtnConfig.classList.toggle('active', showMatrixForStudents); toggleMatrixBtnConfig.textContent = showMatrixForStudents ? 'ON' : 'OFF';
+        toggleFishChartBtnConfig.classList.toggle('active', showFishChartForStudents); toggleFishChartBtnConfig.textContent = showFishChartForStudents ? 'ON' : 'OFF';
+        toggleMatrixBtnGame.classList.toggle('active', showMatrixForStudents); toggleMatrixBtnGame.textContent = showMatrixForStudents ? 'Hide Student Matrix (from Students)' : 'Show Student Matrix (to Students)';
+        toggleFishChartBtnGame.classList.toggle('active', showFishChartForStudents); toggleFishChartBtnGame.textContent = showFishChartForStudents ? 'Hide Fish Chart (from Students)' : 'Show Fish Chart (to Students)';
       }
 
       function updateStudentTable(studentsFromServer = []) {
-          // Check if studentsTable was found correctly before using it
-          if (!studentsTable) {
-              console.error("Could not find students table body element (#students-table).");
-              return;
-          }
-          studentsTable.innerHTML = ''; // This line was causing the error if studentsTable was undefined
-          studentData = {};
-          studentsFromServer.forEach(s => {
-              studentData[s.studentId] = s; const tr = document.createElement('tr'); tr.setAttribute('data-studentid', s.studentId);
-              const statusClass = s.submitted ? 'status-submitted' : 'status-pending'; const statusText = s.submitted ? 'Submitted' : 'Pending';
-              tr.innerHTML = `<td>${s.name}</td><td class="${statusClass}">${statusText}</td><td>${s.submitted ? (s.requestedCatch ?? '-') : '-'}</td><td>${s.catchThisTurn ?? '-'}</td><td>$${s.money ?? 0}</td>`;
-              studentsTable.appendChild(tr);
-          });
+        // Check if studentsTable was found correctly before using it
+        if (!studentsTable) {
+          console.error("Could not find students table body element (#students-table).");
+          return;
+        }
+        studentsTable.innerHTML = ''; // This line was causing the error if studentsTable was undefined
+        studentData = {};
+        studentsFromServer.forEach(s => {
+          studentData[s.studentId] = s; const tr = document.createElement('tr'); tr.setAttribute('data-studentid', s.studentId);
+          const statusClass = s.submitted ? 'status-submitted' : 'status-pending'; const statusText = s.submitted ? 'Submitted' : 'Pending';
+          tr.innerHTML = `<td>${s.name}</td><td class="${statusClass}">${statusText}</td><td>${s.submitted ? (s.requestedCatch ?? '-') : '-'}</td><td>${s.catchThisTurn ?? '-'}</td><td>$${s.money ?? 0}</td>`;
+          studentsTable.appendChild(tr);
+        });
       }
 
       function initializeChart(initialPoolValue) {
-            const ctx = fishChartCanvas.getContext('2d'); fishData = [initialPoolValue]; fishLabels = ['Start']; if (fishChart) { fishChart.destroy(); }
-            fishChart = new Chart(ctx, { type: 'line', data: { labels: fishLabels, datasets: [{ label: 'Fish Pool Size', data: fishData, borderColor: '#007bff', backgroundColor: 'rgba(0, 123, 255, 0.1)', fill: true, tension: 0.1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'Number of Fish' } }, x: { title: { display: true, text: 'Turn' } } }, plugins: { title: { display: true, text: 'Fish Pool Over Time' } } } });
+        const ctx = fishChartCanvas.getContext('2d'); fishData = [initialPoolValue]; fishLabels = ['Start']; if (fishChart) { fishChart.destroy(); }
+        fishChart = new Chart(ctx, { type: 'line', data: { labels: fishLabels, datasets: [{ label: 'Fish Pool Size', data: fishData, borderColor: '#007bff', backgroundColor: 'rgba(0, 123, 255, 0.1)', fill: true, tension: 0.1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'Number of Fish' } }, x: { title: { display: true, text: 'Turn' } } }, plugins: { title: { display: true, text: 'Fish Pool Over Time' } } } });
       }
 
       function updateChart(turn, poolValue) {
-            if (!fishChart) return; const label = `Turn ${turn}`; const lastLabel = fishLabels[fishLabels.length - 1];
-            // Ensure turn is treated as a string label for comparison/lookup
-            const turnLabel = String(turn);
-            const lastChartLabel = String(lastLabel); // Ensure comparison is string vs string
+        if (!fishChart) return; const label = `Turn ${turn}`; const lastLabel = fishLabels[fishLabels.length - 1];
+        // Ensure turn is treated as a string label for comparison/lookup
+        const turnLabel = String(turn);
+        const lastChartLabel = String(lastLabel); // Ensure comparison is string vs string
 
-            if (lastChartLabel !== turnLabel) {
-                 // Check if the label already exists somewhere in the array (e.g., from a previous update)
-                 const existingIndex = fishLabels.findIndex(lbl => String(lbl) === turnLabel);
-                 if (existingIndex === -1) {
-                    // Label is genuinely new, add it
-                    fishLabels.push(turnLabel);
-                    fishData.push(poolValue);
-                 } else {
-                     // Label exists, update the data at that index
-                     fishData[existingIndex] = poolValue;
-                 }
-            } else {
-                // Label is the same as the last one, update the last data point
-                fishData[fishData.length - 1] = poolValue;
-            }
-            fishChart.update();
+        if (lastChartLabel !== turnLabel) {
+          // Check if the label already exists somewhere in the array (e.g., from a previous update)
+          const existingIndex = fishLabels.findIndex(lbl => String(lbl) === turnLabel);
+          if (existingIndex === -1) {
+            // Label is genuinely new, add it
+            fishLabels.push(turnLabel);
+            fishData.push(poolValue);
+          } else {
+            // Label exists, update the data at that index
+            fishData[existingIndex] = poolValue;
+          }
+        } else {
+          // Label is the same as the last one, update the last data point
+          fishData[fishData.length - 1] = poolValue;
+        }
+        fishChart.update();
       }
 
       // --- Socket Event Handlers ---
@@ -181,29 +307,41 @@
         console.log('[Commons Teacher] Received config:', cfg); gameConfigState = cfg; initialFish.value = cfg.initialFish ?? 100; growthRate.value = (cfg.growthRate ?? 0.2) * 100; minFishPerFamily.value = cfg.minFishPerFamily ?? 2; fishPrice.value = cfg.fishPrice ?? 10; currentGrowthRate.value = (cfg.growthRate ?? 0.2) * 100; currentFishPrice.value = cfg.fishPrice ?? 10; updateToggleButtons(!!cfg.showLastTurnStats, !!cfg.showFishChart);
       });
       socket.on('updateStudentList', data => {
-          console.log('[Commons Teacher] Received student list update:', data); currentFish.value = data.fishPool ?? currentFish.value; currentTurn.textContent = data.turn ?? currentTurn.textContent;
-          // Ensure updateStudentTable is called AFTER the DOM element is confirmed available
-          updateStudentTable(data.students);
-          if (data.fishPool !== undefined && data.turn !== undefined) {
-              // Use 'Start' label for turn 0, otherwise use the turn number
-              const currentChartTurnLabel = data.turn > 0 ? `Turn ${data.turn}` : 'Start';
-              if (fishChart) { updateChart(currentChartTurnLabel, data.fishPool); }
-              // If chart doesn't exist and it's turn 0 (or pre-game), initialize
-              else if (data.turn === 0 || !fishChart) { initializeChart(data.fishPool); }
-          }
+        console.log('[Commons Teacher] Received student list update:', data); currentFish.value = data.fishPool ?? currentFish.value; currentTurn.textContent = data.turn ?? currentTurn.textContent;
+        // Ensure updateStudentTable is called AFTER the DOM element is confirmed available
+        updateStudentTable(data.students);
+        if (data.fishPool !== undefined && data.turn !== undefined) {
+          // Use 'Start' label for turn 0, otherwise use the turn number
+          const currentChartTurnLabel = data.turn > 0 ? `Turn ${data.turn}` : 'Start';
+          if (fishChart) { updateChart(currentChartTurnLabel, data.fishPool); }
+          // If chart doesn't exist and it's turn 0 (or pre-game), initialize
+          else if (data.turn === 0 || !fishChart) { initializeChart(data.fishPool); }
+        }
       });
       socket.on('gameStarted', data => {
-            console.log('[Commons Teacher] Game started:', data); configSection.style.display = 'none'; gameSection.style.display = 'block'; currentTurn.textContent = 1; currentFish.value = data.fishPool ?? 0;
-            if (data.config) { gameConfigState = data.config; updateToggleButtons(!!data.config.showLastTurnStats, !!data.config.showFishChart); }
-            initializeChart(data.fishPool ?? 0); updateStudentTable([]);
+        console.log('[Commons Teacher] Game started:', data); configSection.style.display = 'none'; gameSection.style.display = 'block'; currentTurn.textContent = 1; currentFish.value = data.fishPool ?? 0;
+        if (data.config) { gameConfigState = data.config; updateToggleButtons(!!data.config.showLastTurnStats, !!data.config.showFishChart); }
+        initializeChart(data.fishPool ?? 0); updateStudentTable([]);
       });
       socket.on('turnStarted', data => {
-          console.log('[Commons Teacher] Turn started:', data); currentTurn.textContent = data.turn ?? currentTurn.textContent;
-          if (data.fishPool !== undefined) { currentFish.value = data.fishPool; updateChart(`Turn ${data.turn}`, data.fishPool); } // Use Turn X label
-          if (data.config) { gameConfigState = data.config; currentGrowthRate.value = (cfg.growthRate ?? 0.2) * 100; currentFishPrice.value = cfg.fishPrice ?? 10; updateToggleButtons(!!data.config.showLastTurnStats, !!data.config.showFishChart); }
+        console.log('[Commons Teacher] Turn started:', data);
+        currentTurn.textContent = data.turn ?? currentTurn.textContent;
+        if (data.fishPool !== undefined) {
+          currentFish.value = data.fishPool;
+          updateChart(`Turn ${data.turn}`, data.fishPool); // Use Turn X label
+        }
+        // Check if config data is present in the event payload
+        if (data.config) {
+          gameConfigState = data.config; // Update local state
+          // *** CORRECTED: Use data.config instead of cfg ***
+          currentGrowthRate.value = (data.config.growthRate ?? 0.2) * 100;
+          currentFishPrice.value = (data.config.fishPrice ?? 10);
+          // Update toggle buttons based on the received config flags
+          updateToggleButtons(!!data.config.showLastTurnStats, !!data.config.showFishChart);
+        }
       });
       socket.on('gameEnded', data => {
-            console.log('[Commons Teacher] Game ended:', data); alert(`Game Over! Final Fish Pool: ${data.fishPool}`); updateStudentTable(data.finalStats); configSection.style.display = 'block'; gameSection.style.display = 'none'; currentTurn.textContent = 0; studentData = {};
+        console.log('[Commons Teacher] Game ended:', data); alert(`Game Over! Final Fish Pool: ${data.fishPool}`); updateStudentTable(data.finalStats); configSection.style.display = 'block'; gameSection.style.display = 'none'; currentTurn.textContent = 0; studentData = {};
       });
       // --- Event Listeners for Controls ---
       toggleMatrixBtnConfig.addEventListener('click', () => { showMatrixForStudents = !showMatrixForStudents; updateToggleButtons(showMatrixForStudents, showFishChartForStudents); });
@@ -227,14 +365,14 @@
       });
       // Update Live Values Button
       updateLiveBtn.addEventListener('click', () => {
-          const liveGrowthRate = parseFloat(currentGrowthRate.value) / 100;
-          const cfg = {
-              fishPool: parseInt(currentFish.value, 10),
-              growthRate: isNaN(liveGrowthRate) ? gameConfigState.growthRate : liveGrowthRate,
-              fishPrice: parseInt(currentFishPrice.value, 10)
-          };
-          console.log('[Commons Teacher] Emitting setConfig (Update Live):', cfg);
-          socket.emit('setConfig', cfg);
+        const liveGrowthRate = parseFloat(currentGrowthRate.value) / 100;
+        const cfg = {
+          fishPool: parseInt(currentFish.value, 10),
+          growthRate: isNaN(liveGrowthRate) ? gameConfigState.growthRate : liveGrowthRate,
+          fishPrice: parseInt(currentFishPrice.value, 10)
+        };
+        console.log('[Commons Teacher] Emitting setConfig (Update Live):', cfg);
+        socket.emit('setConfig', cfg);
       });
       // End Turn Button
       endTurnBtn.addEventListener('click', () => { console.log('[Commons Teacher] Emitting endTurn'); socket.emit('endTurn'); });
@@ -245,4 +383,5 @@
   </script>
 
 </body>
+
 </html>

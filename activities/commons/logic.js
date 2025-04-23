@@ -279,32 +279,44 @@ module.exports = function(nsp) {
       // *** MODIFIED submitCatch Handler for Immediate Processing ***
       socket.on('submitCatch', requestedAmount => {
         const student = students[socket.id];
-        if (!student || student.submitted || turn === 0) {
-            console.log(`[Commons Logic] Invalid submitCatch from ${student?.name || socket.id}. Submitted: ${student?.submitted}, Turn: ${turn}`);
-            // Optional: Send back an error message?
-            // socket.emit('catchError', { message: 'Submission invalid or already submitted.' });
+
+        // --- DETAILED VALIDATION LOGGING ---
+        if (!student) {
+            console.error(`[Commons Logic] Invalid submitCatch: No student data found for socket ${socket.id}.`);
+            // Optional: Send error back to student
+            socket.emit('catchError', { message: 'Server error: Could not find your session. Please refresh.' });
             return;
         }
+        if (student.submitted) {
+            console.warn(`[Commons Logic] Invalid submitCatch: Student ${student.name} (${student.studentId}) already submitted for turn ${turn}.`);
+            // Optional: Send error back to student
+            socket.emit('catchError', { message: 'You have already submitted for this turn.' });
+            return;
+        }
+        if (turn === 0) {
+            console.warn(`[Commons Logic] Invalid submitCatch: Game not started or has ended (turn is 0).`);
+            // Optional: Send error back to student
+            socket.emit('catchError', { message: 'Submission failed: The game is not currently active.' });
+            return;
+        }
+        // --- END DETAILED VALIDATION ---
+
 
         const requested = Math.max(0, parseInt(requestedAmount) || 0);
         student.requestedCatch = requested; // Store what they asked for
         student.submitted = true; // Mark as submitted for this turn
 
         // --- Immediate Processing Logic ---
+        // ... (rest of the processing logic remains the same) ...
         let actualCatch = 0;
         let moneyEarned = 0;
-
-        // Check available fish *now*
         if (fishPool > 0) {
-            actualCatch = Math.min(requested, fishPool); // Grant up to what's available
-            fishPool -= actualCatch; // Deduct immediately
+            actualCatch = Math.min(requested, fishPool);
+            fishPool -= actualCatch;
         } else {
-            actualCatch = 0; // No fish left
+            actualCatch = 0;
         }
-
-        student.catchThisTurn = actualCatch; // Record actual catch for this turn
-
-        // Calculate money earned based on actual catch
+        student.catchThisTurn = actualCatch;
         const surplusFish = Math.max(0, actualCatch - gameConfig.minFishPerFamily);
         moneyEarned = surplusFish * gameConfig.fishPrice;
         student.money = (student.money || 0) + moneyEarned;

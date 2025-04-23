@@ -87,7 +87,7 @@
 
   <script>
     (function(){
-      // --- Variable Declarations ---
+      // ... variable declarations ...
       const studentIdEl = document.getElementById('studentId');
       const studentNameEl = document.getElementById('studentName');
       const localStudentId = localStorage.getItem('studentId');
@@ -95,7 +95,7 @@
 
       if (!localStudentId || !localStudentName) {
           alert('Student information not found. Please log in again.');
-          return location.href='/student'; // Adjust if login path is different
+          return location.href='/student';
       }
 
       studentIdEl.textContent = localStudentId;
@@ -137,19 +137,13 @@
 
 
       // --- Helper Functions ---
-      function showStatusMessage(message, type = 'info') {
-          submissionStatusEl.textContent = message;
-          submissionStatusEl.className = `status-message status-${type}`;
-          submissionStatusEl.style.display = 'block';
-      }
-      function hideStatusMessage() {
-          submissionStatusEl.style.display = 'none';
-      }
+      function showStatusMessage(message, type = 'info') { /* ... */ }
+      function hideStatusMessage() { /* ... */ }
 
-      // Controls visibility of sections based on teacher toggles
+      // *** LOG ADDED ***
       function updateUIBasedOnConfig(config) {
           gameConfig = config || gameConfig;
-          // console.log('[Student] Updating UI based on config. showFishChart:', gameConfig.showFishChart, 'showLastTurnStats:', gameConfig.showLastTurnStats);
+          console.log('[Student] Updating UI based on config. showFishChart:', gameConfig.showFishChart, 'showLastTurnStats:', gameConfig.showLastTurnStats); // LOG
           fishPoolSection.style.display = gameConfig.showFishChart ? 'block' : 'none';
           fishChartSection.style.display = gameConfig.showFishChart ? 'block' : 'none';
           lastTurnStatsDiv.style.display = gameConfig.showLastTurnStats ? 'block' : 'none';
@@ -158,14 +152,15 @@
           }
       }
 
-      // Initializes the chart object
+      // *** LOG ADDED ***
       function initializeChart(initialFishPool) {
-          // console.log(`[Student] Initializing chart with pool: ${initialFishPool}`);
+          console.log(`[Student] Initializing chart with pool: ${initialFishPool}`); // LOG
           const ctx = fishChartCanvas.getContext('2d');
           fishData = [initialFishPool];
           fishLabels = ['Start']; // Label for the initial state
           if (fishChart) {
-              fishChart.destroy(); // Destroy previous instance if exists
+              console.log('[Student] Destroying existing chart instance before initializing.'); // LOG
+              fishChart.destroy();
           }
           fishChart = new Chart(ctx, {
               type: 'line',
@@ -175,60 +170,46 @@
               },
               options: { scales: { y: { beginAtZero: true } }, responsive: true, maintainAspectRatio: true }
           });
-          // console.log('[Student] Chart initialized successfully.');
+          console.log('[Student] Chart initialized successfully.'); // LOG
       }
 
-      // Adds a data point to the chart for a specific turn
+      // *** LOGS ADDED ***
+      // Simplified updateChart: Adds a point for a specific turn number
       function updateChart(turn, fishPoolValue) {
-          // console.log(`[Student] updateChart called. Turn: ${turn}, Pool: ${fishPoolValue}, IsVisibleConfig: ${gameConfig.showFishChart}, ChartExists: ${!!fishChart}`);
+          console.log(`[Student] updateChart called. Turn: ${turn}, Pool: ${fishPoolValue}, IsVisibleConfig: ${gameConfig.showFishChart}, ChartExists: ${!!fishChart}`); // LOG
           if (!fishChart || !gameConfig.showFishChart) {
-             // console.log('[Student] updateChart: Aborting (chart null or not visible)');
-             return; // Abort if chart doesn't exist or shouldn't be shown
+             console.log('[Student] updateChart: Aborting (chart null or not visible)'); // LOG
+             return;
           }
 
           const label = `Turn ${turn}`; // Use "Turn X" as the label
-          // console.log(`[Student] updateChart: Using label "${label}"`);
+          console.log(`[Student] updateChart: Using label "${label}"`); // LOG
 
           // Only add if the label doesn't already exist
           if (!fishLabels.includes(label)) {
-              // console.log(`[Student] updateChart: Adding new label "${label}" with value ${fishPoolValue}`);
+              console.log(`[Student] updateChart: Adding new label "${label}" with value ${fishPoolValue}`); // LOG
               fishLabels.push(label);
               fishData.push(fishPoolValue);
               fishChart.update();
-              // console.log('[Student] updateChart: Chart update() called.');
+              console.log('[Student] updateChart: Chart update() called.'); // LOG
           } else {
-              // console.log(`[Student] updateChart: Label "${label}" already exists. Ignoring update.`);
+              console.log(`[Student] updateChart: Label "${label}" already exists. Ignoring update.`); // LOG
           }
       }
 
-      // Resets input fields for a new turn
-      function resetTurnUI() {
-        // console.log('[Student] resetTurnUI called.');
-        if (catchInput) catchInput.value = 0;
-        if (catchInput) catchInput.disabled = false;
-        if (submitCatchBtn) submitCatchBtn.disabled = false;
-        // else console.error('[Student] resetTurnUI: submitCatchBtn not found!');
-      }
+      function resetTurnUI() { /* ... */ }
 
       // --- Socket Event Handlers ---
       socket.on('connect', () => { console.log('[Commons Student] Connected.'); });
-      socket.on('disconnect', () => { console.log('[Commons Student] Disconnected.'); alert('Connection lost. Please refresh.'); waitingDiv.style.display = 'block'; gameDiv.style.display = 'none'; resultDiv.style.display = 'none'; });
-      socket.on('loginSuccess', (data) => { console.log('[Commons Student] Login successful:', data); });
-      socket.on('waiting', () => { console.log('[Commons Student] Waiting for game start.'); waitingDiv.style.display = 'block'; gameDiv.style.display = 'none'; resultDiv.style.display = 'none'; });
-
-      // Handles config updates broadcast by teacher mid-game (e.g., toggles)
+      socket.on('disconnect', () => { /* ... */ });
+      socket.on('loginSuccess', (data) => { /* ... */ });
+      socket.on('waiting', () => { /* ... */ });
       socket.on('turnUpdate', data => {
           console.log('[Commons Student] Received turn update:', data);
           if (data.config) { updateUIBasedOnConfig(data.config); }
-          // If chart visibility was just turned ON, try to initialize/update
-          if (data.config?.showFishChart && !fishChart && data.turn > 0) {
-              // Need pool data to initialize mid-game - might require another event or logic adjustment
-              console.warn("[Student] Chart visibility turned on mid-game, but initial data might be missing.");
-              // Potentially request full history or wait for next turn?
-          }
       });
 
-      // Handles the start of the game
+      // *** LOGS ADDED ***
       socket.on('gameStarted', data => {
         console.log('[Commons Student] Game started:', data);
         waitingDiv.style.display = 'none'; gameDiv.style.display = 'block'; resultDiv.style.display = 'none';
@@ -236,123 +217,65 @@
         currentMoney = 0; currentTotalCatch = 0; currentTurnNumber = 1; // Game starts at Turn 1
         turnEl.textContent = currentTurnNumber; moneyEl.textContent = currentMoney; totalCatchEl.textContent = currentTotalCatch;
 
-        updateUIBasedOnConfig(gameConfig); // Set initial visibility for chart/stats
+        updateUIBasedOnConfig(gameConfig); // Set initial visibility
 
-        // Initialize chart if visible
         if (gameConfig.showFishChart && data.fishPool !== undefined) {
+          console.log('[Student] gameStarted: Initializing chart because showFishChart is true.'); // LOG
           fishPoolEl.textContent = data.fishPool;
           initializeChart(data.fishPool); // Initialize with "Start" label
         } else {
-          // Ensure chart is destroyed if not visible
-          if (fishChart) { fishChart.destroy(); fishChart = null; }
-          fishData = []; fishLabels = []; // Clear data
+          console.log('[Student] gameStarted: NOT initializing chart. showFishChart:', gameConfig.showFishChart, 'data.fishPool:', data.fishPool); // LOG
+          if (fishChart) {
+              console.log('[Student] gameStarted: Destroying chart because showFishChart is false.'); // LOG
+              fishChart.destroy();
+              fishChart = null;
+          }
+          fishData = []; fishLabels = []; // Clear data even if chart didn't exist
         }
-        resetTurnUI(); // Enable inputs
-        hideStatusMessage(); // Clear status message
+        resetTurnUI(); hideStatusMessage();
       });
 
-      // Handles the start of each turn (after the first)
+      // *** LOG ADDED ***
       socket.on('turnStarted', data => {
         console.log('[Commons Student] Turn started:', data);
         currentTurnNumber = data.turn;
         turnEl.textContent = currentTurnNumber;
         if (data.config) updateUIBasedOnConfig(data.config); // Update visibility
 
-        // Update chart with data for the START of this turn if visible
+        // Update chart with data for the START of this turn
         if (data.fishPool !== undefined && gameConfig.showFishChart) {
+          console.log(`[Student] turnStarted: Calling updateChart(${data.turn}, ${data.fishPool})`); // LOG
           fishPoolEl.textContent = data.fishPool;
           updateChart(data.turn, data.fishPool); // Add "Turn X" data point
+        } else if (data.fishPool !== undefined && !gameConfig.showFishChart) {
+            console.log('[Student] turnStarted: Chart not visible, skipping updateChart call.'); // LOG
         }
         resetTurnUI(); // Re-enable inputs
         hideStatusMessage(); // Clear status from previous turn/submission
       });
 
-      // Handles immediate feedback after submitting a catch
-      socket.on('catchProcessed', (result) => {
-          console.log('[Commons Student] Catch processed:', result);
-          currentMoney = result.totalMoney;
-          currentTotalCatch = result.totalCatch;
-          moneyEl.textContent = currentMoney;
-          totalCatchEl.textContent = currentTotalCatch;
-          // Update numeric display if visible
-          if (gameConfig.showFishChart && result.currentFishPool !== undefined) {
-              fishPoolEl.textContent = result.currentFishPool;
-          }
-          // Show success message
-          showStatusMessage(`You requested ${result.requested}, caught ${result.catchAmount} fish, and earned $${result.moneyEarned}.`, 'success');
-          // Keep inputs disabled for the rest of the turn
-          catchInput.disabled = true;
-          submitCatchBtn.disabled = true;
-      });
 
-      // Handles errors during submission
-      socket.on('catchError', (error) => {
-        console.error('[Commons Student] Received catch error:', error.message);
-        showStatusMessage(`Submission Failed: ${error.message}`, 'warning');
-        // Re-enable button/input cautiously
-        if (catchInput) catchInput.disabled = false;
-        if (submitCatchBtn) submitCatchBtn.disabled = false;
-      });
+      socket.on('catchProcessed', (result) => { /* ... same ... */ });
+      socket.on('catchError', (error) => { /* ... same ... */ });
 
-      // Handles end-of-turn updates (primarily for shared stats table)
       socket.on('turnEnded', res => {
         console.log('[Commons Student] Turn ended event received:', res);
-        // Update UI visibility based on flags potentially changed by teacher
         if (res.showFishChart !== undefined && res.showLastTurnStats !== undefined) {
             updateUIBasedOnConfig({ showFishChart: res.showFishChart, showLastTurnStats: res.showLastTurnStats });
         }
-        // Update numeric pool display if visible (shows pool *before* next growth)
+        // Update numeric display if visible (shows pool before growth)
          if (res.fishPool !== undefined && gameConfig.showFishChart) {
              fishPoolEl.textContent = res.fishPool;
+             console.log(`[Student] turnEnded: Updated numeric fish pool display to ${res.fishPool}. Chart update skipped.`); // LOG
          }
         // Populate shared stats table if visible
-        if (gameConfig.showLastTurnStats && res.stats) {
-          statsTableBody.innerHTML = ''; // Clear previous stats
-          res.stats.forEach(s => {
-            const tr = document.createElement('tr');
-            const isMe = s.studentId === localStudentId;
-            tr.style.fontWeight = isMe ? 'bold' : 'normal';
-            tr.innerHTML = `<td>${s.name}${isMe ? ' (You)' : ''}</td><td>${s.catchThisTurn}</td><td>$${s.money}</td>`;
-            statsTableBody.appendChild(tr);
-          });
-        } else {
-            statsTableBody.innerHTML = ''; // Clear table if not visible
-        }
+        if (gameConfig.showLastTurnStats && res.stats) { /* ... */ } else { /* ... */ }
       });
 
-      // Handles game end
-      socket.on('gameEnded', data => {
-        console.log('[Commons Student] Game ended:', data);
-        gameDiv.style.display = 'none'; resultDiv.style.display = 'block';
-        finalFishCountEl.textContent = data.fishPool ?? 'N/A';
-        finalTableBody.innerHTML = ''; // Clear previous final stats
-        if (data.finalStats) {
-          data.finalStats.sort((a, b) => (b.money || 0) - (a.money || 0)); // Sort by money
-          data.finalStats.forEach(s => {
-            const tr = document.createElement('tr');
-             const isMe = s.studentId === localStudentId;
-             tr.style.fontWeight = isMe ? 'bold' : 'normal';
-             tr.style.backgroundColor = isMe ? '#e9f5ff' : 'transparent';
-            tr.innerHTML = `<td>${s.name}${isMe ? ' (You)' : ''}</td><td>${s.totalCatch ?? 0}</td><td>$${s.money ?? 0}</td>`;
-            finalTableBody.appendChild(tr);
-          });
-        }
-      });
+      socket.on('gameEnded', data => { /* ... */ });
 
       // --- Input Actions ---
-      submitCatchBtn.addEventListener('click', () => {
-        const n = parseInt(catchInput.value, 10);
-        if (isNaN(n) || n < 0) {
-            showStatusMessage('Please enter a valid non-negative number.', 'warning');
-            return;
-        }
-        console.log(`[Commons Student] Submitting catch: ${n}`);
-        socket.emit('submitCatch', n);
-        // Disable temporarily, server response ('catchProcessed' or 'catchError') will confirm final state
-        submitCatchBtn.disabled = true;
-        catchInput.disabled = true;
-        showStatusMessage('Submitting your catch request...', 'info'); // Provide initial feedback
-      });
+      submitCatchBtn.addEventListener('click', () => { /* ... */ });
 
     })();
   </script>
