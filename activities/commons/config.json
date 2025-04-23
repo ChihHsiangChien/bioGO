@@ -1,8 +1,8 @@
 {
   "initialFish": 100,
   "growthRate": 0.2,
-  "turnLimit": 10,
-  "turnDuration": 30,
-  "showRemainingFish": false,
-  "showTotalCatch": true
+  "fishPrice": 10,
+  "minFishPerFamily": 2,
+  "showLastTurnStats": false,
+  "showFishChart": false
 }

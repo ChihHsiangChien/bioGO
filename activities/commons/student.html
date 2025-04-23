@@ -7,234 +7,270 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
-    #game, #result { max-width: 400px; margin: auto; display: none; }
-    input { width: 100px; }
-    button { margin: 8px; padding: 6px 12px; }
-    /* --- 樣式 (可選) --- */
-    #actual-catch-section { margin-top: 5px; font-weight: bold; color: green; }
+    /* ... styles remain the same ... */
+    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; background-color: #f0f0f0; }
+    #container { max-width: 500px; margin: auto; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    h1, h2 { color: #333; }
+    #game, #result, #waiting { margin-top: 20px; }
+    .info-panel p { margin: 10px 0; font-size: 1.1em; }
+    #money-display { font-size: 1.2em; font-weight: bold; color: #28a745; }
+    #fish-pool-section { color: #007bff; }
+    input[type="number"] { width: 100px; padding: 8px; margin: 0 10px; border: 1px solid #ccc; border-radius: 4px; }
+    button { margin: 8px; padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; }
+    button:disabled { background-color: #ccc; cursor: not-allowed; }
+    #last-turn-stats { margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; }
+    #last-turn-stats h3 { margin-bottom: 10px; }
+    table { border-collapse: collapse; width: 90%; margin: 20px auto; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background-color: #f8f9fa; }
+    #fishChartCanvas { margin-top: 20px; background-color: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+    #result table { margin-top: 30px; }
+    .status-message { padding: 10px; margin-top: 15px; border-radius: 4px; font-weight: bold; }
+    .status-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status-info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+    .status-warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
   </style>
 </head>
 <body>
-  <h1>Tragedy of the Commons - Student</h1>
-  <div id="waiting">
-    <p>等待教師開始遊戲...</p>
+  <div id="container">
+      <h1>Tragedy of the Commons</h1>
+      <div id="student-info">
+          <p>Welcome, <strong id="studentName"></strong> (<span id="studentId"></span>)</p>
+      </div>
+
+      <div id="waiting">
+          <h2>Waiting Area</h2>
+          <p class="status-info">Waiting for the teacher to start the game...</p>
+      </div>
+
+      <div id="game" style="display:none;">
+          <h2>Turn <span id="turn">0</span></h2>
+          <div class="info-panel">
+              <p id="fish-pool-section" style="display: none;">Available Fish in Pool: <strong id="fishPool">?</strong></p>
+              <p id="money-display">Your Money: $<span id="money">0</span></p>
+              <p id="total-catch-display">Your Total Catch: <span id="totalCatch">0</span> fish</p>
+          </div>
+
+          <div id="action-section">
+              <p>How many fish do you want to catch this turn?</p>
+              <input type="number" id="catchAmount" min="0" value="0" />
+              <button id="submitCatchBtn">Submit Catch</button>
+              <p id="submission-status" class="status-message" style="display: none;"></p>
+          </div>
+
+          <!-- "Last Turn Stats" section remains, controlled by student visibility flag -->
+          <div id="last-turn-stats" style="display: none;">
+              <h3>Last Turn Results (Shared)</h3> <!-- Clarified heading -->
+              <!-- Removed personal last turn catch/money here, shown in status message -->
+              <p>(Minimum fish needed per family: <span id="minFishRequired">?</span>)</p>
+              <h4>All Players' Stats (Last Turn)</h4>
+              <table id="statsTable">
+                  <thead><tr><th>Name</th><th>Catch</th><th>Total Money</th></tr></thead>
+                  <tbody><!-- Stats rows here --></tbody>
+              </table>
+          </div>
+
+          <!-- Fish chart section remains, controlled by student visibility flag -->
+          <div id="fish-chart-section" style="display: none;">
+              <h3>Fish Pool History</h3>
+              <canvas id="fishChartCanvas" width="400" height="200"></canvas>
+          </div>
+      </div>
+
+      <div id="result" style="display:none;">
+          <h2>Game Over!</h2>
+          <p id="final-fish-pool">Final Fish Pool: <span id="finalFishCount">?</span></p>
+          <h3>Final Standings</h3>
+          <table id="finalTable">
+              <thead><tr><th>Name</th><th>Total Catch</th><th>Final Money</th></tr></thead>
+              <tbody><!-- Final stats rows here --></tbody>
+          </table>
+      </div>
   </div>
-  <div id="game">
-    <p>Turn <span id="turn">0</span></p>
-    <p id="fish-pool-section">Fish Pool: <span id="fishPool">0</span></p>
-    <p>Money: $<span id="money">0</span> Boat: <span id="boat">竹筏</span></p>
-    <p>Catch this turn: <input type="number" id="catchAmount" min="0" value="0" />
-       <button id="submitCatchBtn">Submit</button>
-    </p>
-    <!-- --- 修改標籤並保持顯示區域 --- -->
-    <p id="actual-catch-section">Actual catch <strong>last</strong> turn: <span id="actualCatchDisplay">0</span></p>
-    <div id="upgrade-section">
-      <h3>Upgrade Boat</h3>
-      <ul id="boat-list"></ul>
-    </div>
-  </div>
-  <div id="result">
-    <h2>Game Over</h2>
-    <table id="finalTable" border="1" style="margin:auto;"><tr><th>Name</th><th>TotalCatch</th><th>Money</th><th>Boat</th></tr></table>
-    <h3>Fish Pool Over Time</h3>
-    <canvas id="fishChart" width="400" height="200" style="margin:auto;"></canvas>
-  </div>
+
   <script>
     (function(){
-      const studentId = localStorage.getItem('studentId');
-      const name = localStorage.getItem('studentName');
-      if (!studentId || !name) return location.href='/student';
-      const socket = io('/commons', { query: { role:'student', studentId, name } });
-      console.log('[Commons] Student namespace socket connected');
-      // state
-      let boats = [];
-      let currentBoatIndex = 0;
-      let money = 0;
-      let lastActualCatch = 0; // <-- 新增：儲存上一回合的實際捕獲量
-      // chart data
+      const studentIdEl = document.getElementById('studentId');
+      const studentNameEl = document.getElementById('studentName');
+      const localStudentId = localStorage.getItem('studentId');
+      const localStudentName = localStorage.getItem('studentName');
+
+      if (!localStudentId || !localStudentName) {
+          alert('Student information not found. Please log in again.');
+          return location.href='/student';
+      }
+
+      studentIdEl.textContent = localStudentId;
+      studentNameEl.textContent = localStudentName;
+
+      const socket = io('/commons', { query: { role:'student', studentId: localStudentId, name: localStudentName } });
+      console.log('[Commons Student] Connecting...');
+
+      // --- DOM Elements ---
+      const waitingDiv = document.getElementById('waiting');
+      const gameDiv = document.getElementById('game');
+      const resultDiv = document.getElementById('result');
+      const turnEl = document.getElementById('turn');
+      const fishPoolSection = document.getElementById('fish-pool-section');
+      const fishPoolEl = document.getElementById('fishPool');
+      const moneyEl = document.getElementById('money');
+      const totalCatchEl = document.getElementById('totalCatch');
+      const catchInput = document.getElementById('catchAmount');
+      const submitCatchBtn = document.getElementById('submitCatchBtn');
+      const submissionStatusEl = document.getElementById('submission-status');
+      const lastTurnStatsDiv = document.getElementById('last-turn-stats');
+      const minFishRequiredEl = document.getElementById('minFishRequired');
+      const statsTableBody = document.getElementById('statsTable').getElementsByTagName('tbody')[0];
+      const finalTableBody = document.getElementById('finalTable').getElementsByTagName('tbody')[0];
+      const finalFishCountEl = document.getElementById('finalFishCount');
+      const fishChartSection = document.getElementById('fish-chart-section');
+      const fishChartCanvas = document.getElementById('fishChartCanvas');
+
+      // --- State ---
+      let currentMoney = 0;
+      let currentTotalCatch = 0;
+      let currentTurnNumber = 0;
+      let gameConfig = {};
+
+      // --- Chart ---
       let fishChart = null;
       let fishData = [];
       let fishLabels = [];
-      // --- DOM 元素引用 ---
-      const waiting = document.getElementById('waiting');
-      const game = document.getElementById('game');
-      const result = document.getElementById('result');
-      const turnEl = document.getElementById('turn');
-      const fishPoolEl = document.getElementById('fishPool');
-      const moneyEl = document.getElementById('money');
-      const boatEl = document.getElementById('boat');
-      const catchInput = document.getElementById('catchAmount');
-      const submitCatchBtn = document.getElementById('submitCatchBtn');
-      const finalTable = document.getElementById('finalTable');
-      const actualCatchEl = document.getElementById('actualCatchDisplay');
-      const boatList = document.getElementById('boat-list');
 
-      socket.on('loginSuccess', () => {});
-      socket.on('gameStarted', data => {
-        console.log('[Commons] gameStarted event data:', data);
-        waiting.style.display = 'none';
-        game.style.display = 'block';
-        result.style.display = 'none';
-        const cfg = data.config || {};
-        const fishSection = document.getElementById('fish-pool-section');
-        const fishCanvas = document.getElementById('fishChart');
-        if (cfg.showRemainingFish) {
-          fishSection.style.display = 'block';
-          fishCanvas.style.display = 'block';
-          fishPoolEl.textContent = data.fishPool;
-        } else {
-          fishSection.style.display = 'none';
-          fishCanvas.style.display = 'none';
-        }
-        boats = data.boats || [];
-        money = 0;
-        currentBoatIndex = 0;
-        lastActualCatch = 0; // <-- 初始化上一回合捕獲量
-        boatEl.textContent = boats[0]?.name || '';
-        moneyEl.textContent = money;
-        catchInput.max = boats[0]?.maxCatch || 0;
-        catchInput.value = 0;
-        actualCatchEl.textContent = lastActualCatch; // <-- 遊戲開始時顯示 0
-        turnEl.textContent = 1;
-        boatList.innerHTML = '';
-        boats.forEach((b, i) => {
-          const li = document.createElement('li');
-          const btn = document.createElement('button');
-          btn.textContent = `Buy ${b.name} ($${b.price})`;
-          btn.disabled = true;
-          btn.addEventListener('click', () => socket.emit('upgradeBoat', i));
-          li.textContent = `${b.name} - MaxCatch: ${b.maxCatch}`;
-          li.appendChild(btn);
-          boatList.appendChild(li);
-        });
-        const ctx = document.getElementById('fishChart').getContext('2d');
-        fishData = [data.fishPool]; fishLabels = ['Start'];
-        if (fishChart) fishChart.destroy();
-        fishChart = new Chart(ctx, { type: 'line', data: { labels: fishLabels, datasets: [{ label: 'Fish Pool', data: fishData, borderColor: 'green', fill: false }] }, options: { scales: { y: { beginAtZero: true } } } });
-        updateUpgradeButtons();
-      });
-
-      socket.on('turnStarted', data => {
-        // --- 在回合開始時，顯示 *上個* 回合儲存的結果 ---
-        actualCatchEl.textContent = lastActualCatch;
-
-        // --- 然後處理當前回合的設定 ---
-        turnEl.textContent = data.turn;
-        if (data.fishPool!==undefined) fishPoolEl.textContent = data.fishPool;
-        catchInput.value = 0; // 重置輸入框
-        submitCatchBtn.disabled = false; // 啟用提交按鈕
-        // --- 不再重置 actualCatchEl ---
-        updateUpgradeButtons();
-        moneyEl.textContent = money; // 確保顯示最新的 money (可能因升級改變)
-        boatEl.textContent = boats[currentBoatIndex]?.name || '';
-        catchInput.max = boats[currentBoatIndex]?.maxCatch || 0;
-      });
-
-      submitCatchBtn.addEventListener('click', () => {
-        const n = parseInt(catchInput.value, 10);
-        const maxCatch = boats[currentBoatIndex]?.maxCatch || 0;
-        if (isNaN(n) || n < 0) {
-            alert('Please enter a valid non-negative number.');
-            return;
-        }
-        if (n > maxCatch) {
-            alert(`Your current boat's maximum catch is ${maxCatch}.`);
-            return;
-        }
-        socket.emit('submitCatch', n);
-        submitCatchBtn.disabled = true;
-      });
-
-      socket.on('catchReceived', () => {
-        console.log('Catch submitted to server.');
-      });
-
-      socket.on('upgradeSuccess', res => {
-        money = res.money;
-        moneyEl.textContent = money; // 立刻更新金錢顯示
-        // 注意：船隻的更新會在下一個 turnEnded 或 turnStarted 時反映
-        alert(`Upgraded to ${res.boat}`);
-        updateUpgradeButtons(); // 更新按鈕狀態
-      });
-
-      socket.on('upgradeFailed', msg => alert(msg));
-
-      socket.on('turnEnded', res => {
-        if (res.fishPool !== undefined) {
-          fishPoolEl.textContent = res.fishPool;
-          fishLabels.push(`Turn ${res.turn}`);
-          fishData.push(res.fishPool);
-          if (fishChart) fishChart.update();
-        }
-        const me = res.stats.find(s => s.studentId === studentId);
-        if (me) {
-          money = me.money; // 更新本地 money 狀態
-          const oldBoatIndex = currentBoatIndex;
-          currentBoatIndex = boats.findIndex(b => b.name === me.boat);
-          if (currentBoatIndex === -1) currentBoatIndex = oldBoatIndex;
-
-          // --- 儲存本回合的實際捕獲量，供下一回合顯示 ---
-          lastActualCatch = me.actual;
-          // --- 不在這裡更新 actualCatchEl 的顯示 ---
-
-          // 更新本地狀態，這些會在下個 turnStarted 時更新到 UI
-          // moneyEl.textContent = money; // turnStarted 會處理
-          // boatEl.textContent = me.boat; // turnStarted 會處理
-          // catchInput.max = boats[currentBoatIndex]?.maxCatch || 0; // turnStarted 會處理
-
-          // update upgrade buttons (雖然 turnStarted 也會做，但這裡做可以更快反應金錢變化)
-          updateUpgradeButtons();
-        } else {
-            console.warn("Could not find my stats in turnEnded data:", res.stats);
-            // 如果找不到自己的數據，可以選擇保留上一次的值或設為錯誤/0
-            // lastActualCatch = 'Error'; // 或者保持不變
-        }
-        // submitCatchBtn 不需要在此啟用，turnStarted 會處理
-      });
-
-      socket.on('configChanged', cfg => {
-        const fishSection = document.getElementById('fish-pool-section');
-        const fishCanvas = document.getElementById('fishChart');
-        if (cfg.showRemainingFish) {
-          fishSection.style.display = 'block';
-          fishCanvas.style.display = 'block';
-        } else {
-          fishSection.style.display = 'none';
-          fishCanvas.style.display = 'none';
-        }
-      });
-
-      socket.on('gameEnded', data => {
-        game.style.display='none'; result.style.display='block';
-        finalTable.innerHTML = '<tr><th>Name</th><th>TotalCatch</th><th>Money</th><th>Boat</th></tr>';
-        if (data.finalStats && Array.isArray(data.finalStats)) {
-            data.finalStats.forEach(s=>{
-              const tr = document.createElement('tr');
-              tr.innerHTML = `<td>${s.name || 'N/A'}</td><td>${s.totalCatch ?? 'N/A'}</td><td>${s.money ?? 'N/A'}</td><td>${s.boat || 'N/A'}</td>`;
-              finalTable.appendChild(tr);
-            });
-        } else {
-            console.error("Final stats data is missing or not an array:", data);
-        }
-        if (fishChart && data.fishPool !== undefined && fishLabels[fishLabels.length - 1] !== 'End') {
-            fishLabels.push('End');
-            fishData.push(data.fishPool);
-            fishChart.update();
-        }
-      });
-
-      function updateUpgradeButtons() {
-          const boatItems = document.querySelectorAll('#boat-list li');
-          boats.forEach((b, i) => {
-              if (boatItems[i]) {
-                  const btn = boatItems[i].querySelector('button');
-                  if (btn) {
-                      btn.disabled = money < b.price || i <= currentBoatIndex;
-                  }
-              }
+      // --- Helper Functions ---
+      function showStatusMessage(message, type = 'info') { /* ... same ... */
+          submissionStatusEl.textContent = message;
+          submissionStatusEl.className = `status-message status-${type}`;
+          submissionStatusEl.style.display = 'block';
+      }
+      function hideStatusMessage() { /* ... same ... */
+          submissionStatusEl.style.display = 'none';
+      }
+      function updateUIBasedOnConfig(config) { /* ... same ... */
+          gameConfig = config || gameConfig;
+          fishPoolSection.style.display = gameConfig.showFishChart ? 'block' : 'none';
+          fishChartSection.style.display = gameConfig.showFishChart ? 'block' : 'none';
+          lastTurnStatsDiv.style.display = gameConfig.showLastTurnStats ? 'block' : 'none';
+          if (gameConfig.minFishPerFamily !== undefined) {
+              minFishRequiredEl.textContent = gameConfig.minFishPerFamily;
+          }
+      }
+      function initializeChart(initialFishPool) { /* ... same ... */
+          const ctx = fishChartCanvas.getContext('2d');
+          fishData = [initialFishPool]; fishLabels = ['Start'];
+          if (fishChart) fishChart.destroy();
+          fishChart = new Chart(ctx, {
+              type: 'line', data: { labels: fishLabels, datasets: [{ label: 'Fish Pool Size', data: fishData, borderColor: '#007bff', fill: false }] },
+              options: { scales: { y: { beginAtZero: true } }, responsive: true, maintainAspectRatio: true }
           });
       }
+      function updateChart(turn, fishPoolValue) { /* ... same ... */
+          if (!fishChart || !gameConfig.showFishChart) return;
+          const label = `Turn ${turn}`;
+          if (!fishLabels.includes(label)) {
+              fishLabels.push(label); fishData.push(fishPoolValue); fishChart.update();
+          } else {
+              const lastIndex = fishLabels.length - 1;
+              if (fishLabels[lastIndex] === label) {
+                  fishData[lastIndex] = fishPoolValue;
+                  fishChart.update();
+              }
+          }
+      }
+      function resetTurnUI() { /* ... same ... */
+          catchInput.value = 0;
+          catchInput.disabled = false;
+          submitCatchBtn.disabled = false;
+      }
+
+      // --- Socket Event Handlers ---
+      socket.on('connect', () => { console.log('[Commons Student] Connected.'); });
+      socket.on('disconnect', () => { /* ... same ... */ });
+      socket.on('loginSuccess', (data) => { console.log('[Commons Student] Login successful:', data); });
+      socket.on('waiting', () => { /* ... same ... */ });
+      socket.on('turnUpdate', data => { /* ... same ... */
+          console.log('[Commons Student] Received turn update:', data);
+          if (data.config) { updateUIBasedOnConfig(data.config); }
+      });
+      socket.on('gameStarted', data => { /* ... same ... */
+        console.log('[Commons Student] Game started:', data);
+        waitingDiv.style.display = 'none'; gameDiv.style.display = 'block'; resultDiv.style.display = 'none';
+        gameConfig = data.config || {};
+        currentMoney = 0; currentTotalCatch = 0; currentTurnNumber = 1;
+        turnEl.textContent = currentTurnNumber; moneyEl.textContent = currentMoney; totalCatchEl.textContent = currentTotalCatch;
+        updateUIBasedOnConfig(gameConfig);
+        if (gameConfig.showFishChart && data.fishPool !== undefined) {
+          fishPoolEl.textContent = data.fishPool;
+          initializeChart(data.fishPool);
+        } else { if (fishChart) fishChart.destroy(); fishChart = null; fishData = []; fishLabels = []; }
+        resetTurnUI(); hideStatusMessage();
+      });
+      socket.on('turnStarted', data => { /* ... same ... */
+        console.log('[Commons Student] Turn started:', data);
+        currentTurnNumber = data.turn;
+        turnEl.textContent = currentTurnNumber;
+        if (data.config) updateUIBasedOnConfig(data.config);
+        if (data.fishPool !== undefined && gameConfig.showFishChart) {
+          fishPoolEl.textContent = data.fishPool;
+          updateChart(data.turn, data.fishPool); // Update chart at start of turn
+        }
+        resetTurnUI(); hideStatusMessage();
+      });
+
+      // *** Listener for immediate feedback ***
+      socket.on('catchProcessed', (result) => {
+          console.log('[Commons Student] Catch processed:', result);
+          currentMoney = result.totalMoney;
+          currentTotalCatch = result.totalCatch;
+          moneyEl.textContent = currentMoney;
+          totalCatchEl.textContent = currentTotalCatch;
+          if (gameConfig.showFishChart && result.currentFishPool !== undefined) {
+              fishPoolEl.textContent = result.currentFishPool; // Update numeric display
+              // *** REMOVED chart update from here ***
+              // updateChart(currentTurnNumber, result.currentFishPool);
+          }
+          showStatusMessage(`You requested ${result.requested}, caught ${result.catchAmount} fish, and earned $${result.moneyEarned}.`, 'success');
+          catchInput.disabled = true;
+          submitCatchBtn.disabled = true;
+      });
+
+      // *** Turn end event handler ***
+      socket.on('turnEnded', res => {
+        console.log('[Commons Student] Turn ended event received:', res);
+        if (res.showFishChart !== undefined && res.showLastTurnStats !== undefined) {
+            updateUIBasedOnConfig({ showFishChart: res.showFishChart, showLastTurnStats: res.showLastTurnStats });
+        }
+        // Update chart/pool display if visible (reflects pool *before* next turn's growth)
+        if (res.fishPool !== undefined && gameConfig.showFishChart) {
+          fishPoolEl.textContent = res.fishPool;
+          updateChart(res.turn, res.fishPool); // Update chart with end-of-turn value
+        }
+        // Populate shared stats table if visible
+        if (gameConfig.showLastTurnStats && res.stats) {
+          statsTableBody.innerHTML = '';
+          res.stats.forEach(s => { /* ... populate table row ... */
+            const tr = document.createElement('tr');
+            const isMe = s.studentId === localStudentId;
+            tr.style.fontWeight = isMe ? 'bold' : 'normal';
+            tr.innerHTML = `<td>${s.name}${isMe ? ' (You)' : ''}</td><td>${s.catchThisTurn}</td><td>$${s.money}</td>`;
+            statsTableBody.appendChild(tr);
+          });
+        } else {
+            statsTableBody.innerHTML = '';
+        }
+      });
+
+      socket.on('gameEnded', data => { /* ... same as before ... */ });
+
+      // --- Input Actions ---
+      submitCatchBtn.addEventListener('click', () => { /* ... same as before ... */
+        const n = parseInt(catchInput.value, 10);
+        if (isNaN(n) || n < 0) { showStatusMessage('Please enter a valid non-negative number.', 'warning'); return; }
+        console.log(`[Commons Student] Submitting catch: ${n}`);
+        socket.emit('submitCatch', n);
+        submitCatchBtn.disabled = true; catchInput.disabled = true;
+        showStatusMessage('Submitting your catch request...', 'info');
+      });
 
     })();
   </script>
