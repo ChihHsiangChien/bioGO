@@ -142,24 +142,24 @@
     <!-- ... config inputs and toggles ... -->
     <h2>遊戲設定</h2>
     <div class="control-panel">
-      <div class="input-group"> <label for="initialFish">池塘原有魚數量:</label> <input type="number"
+      <div class="input-group"> <label for="initialFish">池塘原有魚數量</label> <input type="number"
           id="initialFish" value="100" min="0" /> </div>
-      <div class="input-group"> <label for="growthRate">魚群增加率 (%):</label> <input type="number" id="growthRate"
+      <div class="input-group"> <label for="growthRate">魚群增加率 (%)</label> <input type="number" id="growthRate"
           value="20" min="0" step="1" /> </div>
-      <div class="input-group"> <label for="minFishPerFamily">維持家庭最少魚數:</label> <input type="number"
+      <div class="input-group"> <label for="minFishPerFamily">維持家庭最少魚數</label> <input type="number"
           id="minFishPerFamily" value="2" min="0" /> </div>
-      <div class="input-group"> <label for="fishPrice">Fish Price ($):</label> <input type="number" id="fishPrice"
+      <div class="input-group"> <label for="fishPrice">魚價 ($)</label> <input type="number" id="fishPrice"
           value="10" min="0" /> </div>
       <div class="input-group">
-        <label for="minFishPerFamily">Minimum Fish per Family:</label>
+        <label for="minFishPerFamily">維持家庭最少魚數:</label>
         <input type="number" id="minFishPerFamily" value="2" min="0" />
       </div>
-      <div class="input-group"> <label>Student Matrix Visible (to Students):</label> <button
+      <div class="input-group"> <label>漁夫是否可見其他人捕魚狀態 (學生端)</label> <button
           id="toggle-matrix-btn-config" class="toggle-btn">OFF</button> </div>
-      <div class="input-group"> <label>Fish Chart Visible (to Students):</label> <button
+      <div class="input-group"> <label>魚群變化是否可見(學生端)</label> <button
           id="toggle-fish-chart-btn-config" class="toggle-btn">OFF</button> </div>
     </div>
-    <div class="action-buttons"> <button id="start-game-btn">Start Game</button> </div>
+    <div class="action-buttons"> <button id="start-game-btn">開始遊戲</button> </div>
   </section>
 
   <!-- Game section starts hidden -->
@@ -167,13 +167,13 @@
     <h2>Game Control Panel (Turn: <span id="current-turn">0</span>)</h2>
     <div class="control-panel">
       <!-- ... game controls ... -->
-      <div class="input-group"> <label for="currentFish">Current Fish in Pool:</label> <input type="number"
+      <div class="input-group"> <label for="currentFish">現在魚群數量</label> <input type="number"
           id="currentFish" min="0" /> </div>
-      <div class="input-group"> <label for="currentGrowthRate">Current Growth Rate (%):</label> <input type="number"
+      <div class="input-group"> <label for="currentGrowthRate">魚群增加率 (%)</label> <input type="number"
           id="currentGrowthRate" min="0" step="1" /> </div>
-      <div class="input-group"> <label for="minFishPerFamily">Minimum Fish per Family:</label> <input type="number"
+      <div class="input-group"> <label for="minFishPerFamily">維持家庭最少魚數</label> <input type="number"
           id="minFishPerFamily" value="2" min="0" /> </div>          
-      <div class="input-group"> <label for="currentFishPrice">Current Fish Price ($):</label> <input type="number"
+      <div class="input-group"> <label for="currentFishPrice">魚價 ($)</label> <input type="number"
           id="currentFishPrice" min="0" /> </div>
       <div class="input-group"> <label>Update Live Values:</label> <button id="update-live-btn">Update
           Pool/Rate/Price</button> </div>
