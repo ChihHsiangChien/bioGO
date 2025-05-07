@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8" />
-  <title>Tragedy of the Commons - Teacher</title>
+  <title>大家的村莊 - 教師頁面</title>
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -136,7 +136,7 @@
 </head>
 
 <body>
-  <h1>公地悲劇- Teacher</h1>
+  <h1>大家的村莊-教師頁面</h1>
 
   <section id="config-section">
     <!-- ... config inputs and toggles ... -->
@@ -154,9 +154,9 @@
         <label for="minFishPerFamily">維持家庭最少魚數:</label>
         <input type="number" id="minFishPerFamily" value="2" min="0" />
       </div>
-      <div class="input-group"> <label>漁夫是否可見其他人捕魚狀態 (學生端)</label> <button
+      <div class="input-group"> <label>切換學生端是否可見其他人捕魚狀態</label> <button
           id="toggle-matrix-btn-config" class="toggle-btn">OFF</button> </div>
-      <div class="input-group"> <label>魚群變化是否可見(學生端)</label> <button
+      <div class="input-group"> <label>切換學生端是否可見魚群變化圖</label> <button
           id="toggle-fish-chart-btn-config" class="toggle-btn">OFF</button> </div>
     </div>
     <div class="action-buttons"> <button id="start-game-btn">開始遊戲</button> </div>
@@ -164,7 +164,7 @@
 
   <!-- Game section starts hidden -->
   <section id="game-section" style="display:none;">
-    <h2>Game Control Panel (Turn: <span id="current-turn">0</span>)</h2>
+    <h2>遊戲設定 (第 <span id="current-turn">0</span> 年)</h2>
     <div class="control-panel">
       <!-- ... game controls ... -->
       <div class="input-group"> <label for="currentFish">現在魚群數量</label> <input type="number"
@@ -175,29 +175,28 @@
           id="minFishPerFamily" value="2" min="0" /> </div>          
       <div class="input-group"> <label for="currentFishPrice">魚價 ($)</label> <input type="number"
           id="currentFishPrice" min="0" /> </div>
-      <div class="input-group"> <label>Update Live Values:</label> <button id="update-live-btn">Update
-          Pool/Rate/Price</button> </div>
-      <div class="input-group"> <label>Toggle Student Matrix (for Students):</label> <button id="toggle-matrix-btn-game"
-          class="toggle-btn">Show Student Matrix</button> </div>
-      <div class="input-group"> <label>Toggle Fish Chart (for Students):</label> <button id="toggle-fish-chart-btn-game"
-          class="toggle-btn">Show Fish Chart</button> </div>
+      <div class="input-group"> <label>更新現有數據</label> <button id="update-live-btn">更新魚數/增加率/價錢</button> </div>
+      <div class="input-group"> <label>切換學生端是否可見其他人捕魚狀態</label> <button id="toggle-matrix-btn-game"
+          class="toggle-btn">Show</button> </div>
+      <div class="input-group"> <label>切換學生端是否可見魚群變化圖:</label> <button id="toggle-fish-chart-btn-game"
+          class="toggle-btn">Show</button> </div>
     </div>
     <div class="action-buttons">
-      <button id="end-turn-btn">End Turn</button>
-      <button id="end-game-btn">End Game</button>
+      <button id="end-turn-btn">結束這年</button>
+      <button id="end-game-btn">結束遊戲</button>
     </div>
 
     <!-- Student Status section - always visible when #game-section is visible -->
     <div id="students-section">
-      <h3>Student Status</h3>
+      <h3>學生狀態</h3>
       <table>
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Status (This Turn)</th>
-            <th>Requested Catch</th>
-            <th>Actual Catch (This Turn)</th>
-            <th>Money</th>
+            <th>姓名</th>
+            <th>狀態(今年)</th>
+            <th>要求捕獲</th>
+            <th>實際捕獲 (今年)</th>
+            <th>賺</th>
           </tr>
         </thead>
         <tbody id="students-table"></tbody> <!-- ID is here -->
@@ -206,7 +205,7 @@
 
     <!-- Chart section - always visible when #game-section is visible -->
     <div id="chart-section" class="chart-container">
-      <h3>Fish Pool Over Time</h3>
+      <h3>魚群隨時間變化圖</h3>
       <canvas id="fishChart"></canvas>
     </div>
   </section>
@@ -253,8 +252,8 @@
         showMatrixForStudents = matrixVisible; showFishChartForStudents = chartVisible;
         toggleMatrixBtnConfig.classList.toggle('active', showMatrixForStudents); toggleMatrixBtnConfig.textContent = showMatrixForStudents ? 'ON' : 'OFF';
         toggleFishChartBtnConfig.classList.toggle('active', showFishChartForStudents); toggleFishChartBtnConfig.textContent = showFishChartForStudents ? 'ON' : 'OFF';
-        toggleMatrixBtnGame.classList.toggle('active', showMatrixForStudents); toggleMatrixBtnGame.textContent = showMatrixForStudents ? 'Hide Student Matrix (from Students)' : 'Show Student Matrix (to Students)';
-        toggleFishChartBtnGame.classList.toggle('active', showFishChartForStudents); toggleFishChartBtnGame.textContent = showFishChartForStudents ? 'Hide Fish Chart (from Students)' : 'Show Fish Chart (to Students)';
+        toggleMatrixBtnGame.classList.toggle('active', showMatrixForStudents); toggleMatrixBtnGame.textContent = showMatrixForStudents ? 'Hide' : 'Show';
+        toggleFishChartBtnGame.classList.toggle('active', showFishChartForStudents); toggleFishChartBtnGame.textContent = showFishChartForStudents ? 'Hide' : 'Show';
       }
 
       function updateStudentTable(studentsFromServer = []) {
@@ -275,11 +274,11 @@
 
       function initializeChart(initialPoolValue) {
         const ctx = fishChartCanvas.getContext('2d'); fishData = [initialPoolValue]; fishLabels = ['Start']; if (fishChart) { fishChart.destroy(); }
-        fishChart = new Chart(ctx, { type: 'line', data: { labels: fishLabels, datasets: [{ label: 'Fish Pool Size', data: fishData, borderColor: '#007bff', backgroundColor: 'rgba(0, 123, 255, 0.1)', fill: true, tension: 0.1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'Number of Fish' } }, x: { title: { display: true, text: 'Turn' } } }, plugins: { title: { display: true, text: 'Fish Pool Over Time' } } } });
+        fishChart = new Chart(ctx, { type: 'line', data: { labels: fishLabels, datasets: [{ label: 'Fish Pool Size', data: fishData, borderColor: '#007bff', backgroundColor: 'rgba(0, 123, 255, 0.1)', fill: true, tension: 0.1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'Number of Fish' } }, x: { title: { display: true, text: '年' } } }, plugins: { title: { display: true, text: 'Fish Pool Over Time' } } } });
       }
 
       function updateChart(turn, poolValue) {
-        if (!fishChart) return; const label = `Turn ${turn}`; const lastLabel = fishLabels[fishLabels.length - 1];
+        if (!fishChart) return; const label = `第 ${turn} 年`; const lastLabel = fishLabels[fishLabels.length - 1];
         // Ensure turn is treated as a string label for comparison/lookup
         const turnLabel = String(turn);
         const lastChartLabel = String(lastLabel); // Ensure comparison is string vs string
@@ -314,7 +313,7 @@
         updateStudentTable(data.students);
         if (data.fishPool !== undefined && data.turn !== undefined) {
           // Use 'Start' label for turn 0, otherwise use the turn number
-          const currentChartTurnLabel = data.turn > 0 ? `Turn ${data.turn}` : 'Start';
+          const currentChartTurnLabel = data.turn > 0 ? `第 ${data.turn} 年` : 'Start';
           if (fishChart) { updateChart(currentChartTurnLabel, data.fishPool); }
           // If chart doesn't exist and it's turn 0 (or pre-game), initialize
           else if (data.turn === 0 || !fishChart) { initializeChart(data.fishPool); }

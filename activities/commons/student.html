@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tragedy of the Commons - Student</title>
+  <title>村民的選擇</title>
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -33,53 +33,53 @@
 </head>
 <body>
   <div id="container">
-      <h1>Tragedy of the Commons</h1>
+      <h1>大家的村莊</h1>
       <div id="student-info">
-          <p>Welcome, <strong id="studentName"></strong> (<span id="studentId"></span>)</p>
+          <p>歡迎 <strong id="studentName"></strong> (<span id="studentId"></span>) 來到這個村莊</p>
       </div>
 
       <div id="waiting">
-          <h2>Waiting Area</h2>
-          <p class="status-info">Waiting for the teacher to start the game...</p>
+          <h2>村莊入口</h2>
+          <p class="status-info">請等待村長帶你進入村莊...</p>
       </div>
 
       <div id="game" style="display:none;">
-          <h2>Turn <span id="turn">0</span></h2>
+          <h2>這是第 <span id="turn">0</span> 年</h2>
           <div class="info-panel">
-              <p id="fish-pool-section" style="display: none;">Available Fish in Pool: <strong id="fishPool">?</strong></p>
-              <p id="money-display">Your Money: $<span id="money">0</span></p>
-              <p id="total-catch-display">Your Total Catch: <span id="totalCatch">0</span> fish</p>
+              <p id="fish-pool-section" style="display: none;">池裡有多少魚: <strong id="fishPool">?</strong></p>
+              <p id="money-display">你的財產: $<span id="money">0</span></p>
+              <p id="total-catch-display">你的總漁獲量: <span id="totalCatch">0</span> 條魚</p>
           </div>
 
           <div id="action-section">
-              <p>How many fish do you want to catch this turn?</p>
+              <p>今年你想要抓多少魚？</p>
               <input type="number" id="catchAmount" min="0" value="0" />
-              <button id="submitCatchBtn">Submit Catch</button>
+              <button id="submitCatchBtn">開始捕捉</button>
               <p id="submission-status" class="status-message" style="display: none;"></p>
           </div>
 
           <div id="last-turn-stats" style="display: none;">
-              <h3>Last Turn Results (Shared)</h3>
-              <p>(Minimum fish needed per family: <span id="minFishRequired">?</span>)</p>
-              <h4>All Players' Stats (Last Turn)</h4>
+              <h3>去年的結果</h3>
+              <p>每個家庭填飽肚子要幾條魚：<span id="minFishRequired"></span></p>
+              <h4>所有村民的統計資料 (去年)</h4>
               <table id="statsTable">
-                  <thead><tr><th>Name</th><th>Catch</th><th>Total Money</th></tr></thead>
+                  <thead><tr><th>姓名</th><th>捕獲</th><th>總財產</th></tr></thead>
                   <tbody></tbody>
               </table>
           </div>
 
           <div id="fish-chart-section" style="display: none;">
-              <h3>Fish Pool History</h3>
+              <h3>魚群變化過程</h3>
               <canvas id="fishChartCanvas" width="400" height="200"></canvas>
           </div>
       </div>
 
       <div id="result" style="display:none;">
-          <h2>Game Over!</h2>
-          <p id="final-fish-pool">Final Fish Pool: <span id="finalFishCount">?</span></p>
-          <h3>Final Standings</h3>
+          <h2>遊戲結束</h2>
+          <p id="final-fish-pool">最後魚池裡有 <span id="finalFishCount"> </span> 條魚</p>
+          <h3>最後結果</h3>
           <table id="finalTable">
-              <thead><tr><th>Name</th><th>Total Catch</th><th>Final Money</th></tr></thead>
+              <thead><tr><th>姓名</th><th>總捕獲</th><th>總財產</th></tr></thead>
               <tbody></tbody>
           </table>
       </div>
@@ -159,11 +159,16 @@
       }
 
       // Initializes the chart object
-      function initializeChart(initialFishPool) {
-          // console.log(`[Student] Initializing chart with pool: ${initialFishPool}`);
+      function initializeChart(currentFishPool, currentTurnForLabel = 0) {
+          console.log(`[Student] Initializing chart. Pool: ${currentFishPool}, Label Turn: ${currentTurnForLabel}`);
           const ctx = fishChartCanvas.getContext('2d');
-          fishData = [initialFishPool];
-          fishLabels = ['Start']; // Label for the initial state
+          fishData = [currentFishPool];
+          if (currentTurnForLabel <= 0) { // Treat 0, undefined, or negative as "Start"
+              fishLabels = ['Start'];
+          } else {
+              fishLabels = [`年:   ${currentTurnForLabel}`]; // Start chart from this specific turn
+          }
+
           if (fishChart) {
               fishChart.destroy(); // Destroy previous instance if exists
           }
@@ -171,13 +176,34 @@
               type: 'line',
               data: {
                   labels: fishLabels,
-                  datasets: [{ label: 'Fish Pool Size', data: fishData, borderColor: '#007bff', fill: false }]
+                  datasets: [{ label: '池塘魚量', data: fishData, borderColor: '#007bff', fill: false }]
               },
               options: { scales: { y: { beginAtZero: true } }, responsive: true, maintainAspectRatio: true }
           });
-          // console.log('[Student] Chart initialized successfully.');
+          console.log('[Student] Chart initialized successfully. Labels:', fishLabels, 'Data:', fishData);
       }
 
+      // Initializes the chart with a full history of fish pool data
+      function initializeChartWithHistory(historyData) {
+          // historyData is an array of fish pool values.
+          // historyData[0] is the initial pool at "Start".
+          // historyData[i] is the pool at the beginning of "Turn i".
+          console.log(`[Student] Initializing chart with history. Data:`, historyData);
+          const ctx = fishChartCanvas.getContext('2d');
+          fishData = [...historyData];
+          fishLabels = [];
+
+          if (fishData.length > 0) {
+              fishLabels.push('Start'); // For historyData[0]
+              for (let i = 1; i < fishData.length; i++) {
+                  fishLabels.push(`第 ${i} 年`); // For historyData[i]
+              }
+          }
+
+          if (fishChart) { fishChart.destroy(); }
+          fishChart = new Chart(ctx, { type: 'line', data: { labels: fishLabels, datasets: [{ label: '池塘魚量', data: fishData, borderColor: '#007bff', fill: false }] }, options: { scales: { y: { beginAtZero: true } }, responsive: true, maintainAspectRatio: true } });
+          console.log('[Student] Chart initialized with history successfully. Labels:', fishLabels, 'Data:', fishData);
+      }
       // Adds a data point to the chart for a specific turn
       function updateChart(turn, fishPoolValue) {
           // console.log(`[Student] updateChart called. Turn: ${turn}, Pool: ${fishPoolValue}, IsVisibleConfig: ${gameConfig.showFishChart}, ChartExists: ${!!fishChart}`);
@@ -186,7 +212,7 @@
              return; // Abort if chart doesn't exist or shouldn't be shown
           }
 
-          const label = `Turn ${turn}`; // Use "Turn X" as the label
+          const label = `第 ${turn} 年`; // Use "Turn X" as the label
           // console.log(`[Student] updateChart: Using label "${label}"`);
 
           // Only add if the label doesn't already exist
@@ -217,17 +243,53 @@
       socket.on('waiting', () => { console.log('[Commons Student] Waiting for game start.'); waitingDiv.style.display = 'block'; gameDiv.style.display = 'none'; resultDiv.style.display = 'none'; });
 
       // Handles config updates broadcast by teacher mid-game (e.g., toggles)
+      // Expects data to potentially contain:
+      // data.config (object, includes showFishChart)
+      // data.fishPool (number, current fish pool for display)
+      // data.fishHistory (array of numbers, pool size at start of each turn)
+      // data.turn (number, current turn number)
       socket.on('turnUpdate', data => {
           console.log('[Commons Student] Received turn update:', data);
-          if (data.config) { updateUIBasedOnConfig(data.config); }
-          // If chart visibility was just turned ON, try to initialize/update
-          if (data.config?.showFishChart && !fishChart && data.turn > 0) {
-              // Need pool data to initialize mid-game - might require another event or logic adjustment
-              console.warn("[Student] Chart visibility turned on mid-game, but initial data might be missing.");
-              // Potentially request full history or wait for next turn?
+          const wasChartVisible = gameConfig.showFishChart; // Capture state before config update
+
+          if (data.config) {
+              updateUIBasedOnConfig(data.config); // Updates gameConfig.showFishChart
+          }
+
+          const isChartVisibleNow = gameConfig.showFishChart;
+
+          if (isChartVisibleNow) {
+              if (data.fishPool !== undefined) {
+                  fishPoolEl.textContent = data.fishPool; // Update numeric display
+              }
+
+              let shouldInitializeOrRefresh = !fishChart || (!wasChartVisible && isChartVisibleNow);
+              let hasNewHistory = data.fishHistory && Array.isArray(data.fishHistory) && data.fishHistory.length > 0;
+
+              if (shouldInitializeOrRefresh || (fishChart && hasNewHistory)) {
+                  if (hasNewHistory) {
+                      console.log("[Student] Initializing/Re-initializing chart with history:", data.fishHistory);
+                      initializeChartWithHistory(data.fishHistory);
+                  } else if (data.fishPool !== undefined) {
+                      console.warn(`[Student] Chart to be visible. History not provided. Initializing with current pool: ${data.fishPool} for turn: ${data.turn || 0}`);
+                      initializeChart(data.fishPool, data.turn || 0); // Use data.turn for labeling
+                  } else {
+                      console.warn("[Student] Chart to be visible, but no fish pool data provided in turnUpdate. Chart cannot be initialized/updated now.");
+                      if (fishChart) { fishChart.destroy(); fishChart = null; }
+                      fishData = []; fishLabels = [];
+                  }
+              }
+          } else { // Chart is not visible now
+              if (wasChartVisible && fishChart) { // If it was visible and chart object existed
+                  console.log("[Student] Chart visibility turned off. Destroying chart.");
+                  fishChart.destroy();
+                  fishChart = null;
+                  fishData = [];
+                  fishLabels = [];
+              }
           }
       });
-
+      
       // Handles the start of the game
       socket.on('gameStarted', data => {
         console.log('[Commons Student] Game started:', data);
@@ -279,7 +341,7 @@
               fishPoolEl.textContent = result.currentFishPool;
           }
           // Show success message
-          showStatusMessage(`You requested ${result.requested}, caught ${result.catchAmount} fish, and earned $${result.moneyEarned}.`, 'success');
+          showStatusMessage(`你想抓 ${result.requested}條魚，捕獲了 ${result.catchAmount} 條魚，賺到 $${result.moneyEarned}.`, 'success');
           // Keep inputs disabled for the rest of the turn
           catchInput.disabled = true;
           submitCatchBtn.disabled = true;
@@ -332,7 +394,7 @@
             const tr = document.createElement('tr');
              const isMe = s.studentId === localStudentId;
              tr.style.fontWeight = isMe ? 'bold' : 'normal';
-             tr.style.backgroundColor = isMe ? '#e9f5ff' : 'transparent';
+               tr.style.backgroundColor = isMe ? '#e9f5ff' : 'transparent';
             tr.innerHTML = `<td>${s.name}${isMe ? ' (You)' : ''}</td><td>${s.totalCatch ?? 0}</td><td>$${s.money ?? 0}</td>`;
             finalTableBody.appendChild(tr);
           });
