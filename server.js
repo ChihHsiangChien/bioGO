@@ -29,17 +29,10 @@ app.get('/api/qrcode', async (req, res) => {
 // Default namespace for login and dashboard
 // default namespace state
 const students = {}; // socket.id -> { studentId, name }
+const studentSessions = {}; // studentId -> { name }
 // helper to send unique student list to teacherSocket
 function sendStudentList(sock) {
-  const all = Object.values(students);
-  const unique = [];
-  const seen = new Set();
-  all.forEach(s => {
-    if (!seen.has(s.studentId)) {
-      seen.add(s.studentId);
-      unique.push(s);
-    }
-  });
+  const unique = Object.entries(studentSessions).map(([studentId, info]) => ({ studentId, name: info.name }));
   sock.emit('updateStudentList', unique);
 }
 let teacherSocket = null;
@@ -55,6 +48,7 @@ io.on('connection', (socket) => {
     }
     // track student and acknowledge login
     students[socket.id] = { studentId, name };
+    studentSessions[studentId] = { name };
     socket.emit('loginSuccess', { studentId, name });
     // if an activity is already launched, notify new student to join
     if (currentActivity) {
@@ -92,7 +86,40 @@ io.on('connection', (socket) => {
           delete students[sid];
         }
       });
+      // clear persistent session (login records)
+      delete studentSessions[targetStudentId];
+      // also disconnect matching student sockets in Commons namespace
+      const commonsNs = io.of('/commons');
+      commonsNs.sockets.forEach(s => {
+        if (s.handshake.query.role === 'student' && s.handshake.query.studentId === targetStudentId) {
+          s.emit('forcedDisconnect', '已被教師移除，請重新登入');
+          s.disconnect(true);
+        }
+      });
       // update teacher view
+      sendStudentList(socket);
+    });
+    // teacher clears all student sessions and disconnects
+    socket.on('clearAllStudents', () => {
+      // disconnect all student sockets
+      Object.keys(students).forEach(sid => {
+        const s = io.sockets.sockets.get(sid);
+        if (s) {
+          s.emit('forcedDisconnect', '教師已清除所有學生，請重新登入');
+          s.disconnect(true);
+        }
+      });
+      // clear all student sockets and sessions
+      Object.keys(students).forEach(sid => delete students[sid]);
+      Object.keys(studentSessions).forEach(id => delete studentSessions[id]);
+      // also disconnect all student sockets in Commons namespace
+      const commonsNsAll = io.of('/commons');
+      commonsNsAll.sockets.forEach(s => {
+        if (s.handshake.query.role === 'student') {
+          s.emit('forcedDisconnect', '教師已清除所有學生，請重新登入');
+          s.disconnect(true);
+        }
+      });
       sendStudentList(socket);
     });
     // teacher ends the current activity
@@ -189,7 +216,7 @@ server.listen(PORT, () => {
     // 過濾掉不想要的介面卡（例如 WSL）
     const lname = name.toLowerCase();
     const isLikelyReal =
-      lname.includes('wi-fi') || lname.includes('wlan') || lname.includes('ethernet');
+      lname.includes('wi-fi') || lname.includes('wlan') || lname.includes('ethernet') || lname.startsWith('en') || lname.startsWith('wl');
     if (!isLikelyReal) return;
   
     ifaces.forEach(iface => {

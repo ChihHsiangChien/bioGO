@@ -88,9 +88,12 @@
     *   `updateStudentList` (To teacher): 當學生列表變更時，發送最新的學生列表給老師。`[{ studentId, name }, ...]`
     *   `activityLaunched` (To all students): 當老師啟動活動時，通知所有學生。`{ activity: string }`
     *   `activityEnded` (To all students): 當老師結束活動時，通知所有學生。
+    *   `forcedDisconnect` (To specific student): 當老師移除或清除連線時，強制學生重新登入。
 *   **客戶端 -> 伺服器 (Client Emits):**
     *   `launchActivity` (From teacher): 老師請求啟動一個活動。`(activityName: string)`
     *   `endActivity` (From teacher): 老師請求結束當前活動。`()`
+    *   `removeStudent` (From teacher): 老師請求移除特定學生，並強制其重新登入。`(studentId: string)`
+*   `clearAllStudents` (From teacher): 老師請求清除所有學生連線及所有活動命名空間連線，並強制其重新登入。`()`
 
 ### 活動命名空間 (`/<activity_name>`)
 

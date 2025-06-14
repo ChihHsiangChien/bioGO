@@ -289,6 +289,27 @@
               }
           }
       });
+
+      // Re-sync student-specific state after reconnecting mid-game
+      socket.on('studentStateUpdate', state => {
+        console.log('[Commons Student] State update:', state);
+        if (state.money !== undefined) {
+          currentMoney = state.money;
+          moneyEl.textContent = currentMoney;
+        }
+        if (state.totalCatch !== undefined) {
+          currentTotalCatch = state.totalCatch;
+          totalCatchEl.textContent = currentTotalCatch;
+        }
+        if (state.requestedCatch !== undefined) {
+          catchInput.value = state.requestedCatch;
+        }
+        if (state.submitted) {
+          catchInput.disabled = true;
+          submitCatchBtn.disabled = true;
+          showStatusMessage('已提交此回合', 'info');
+        }
+      });
       
       // Handles the start of the game
       socket.on('gameStarted', data => {
@@ -316,6 +337,8 @@
       // Handles the start of each turn (after the first)
       socket.on('turnStarted', data => {
         console.log('[Commons Student] Turn started:', data);
+        // Show game UI on mid-game reconnect
+        waitingDiv.style.display = 'none'; gameDiv.style.display = 'block'; resultDiv.style.display = 'none';
         currentTurnNumber = data.turn;
         turnEl.textContent = currentTurnNumber;
         if (data.config) updateUIBasedOnConfig(data.config); // Update visibility

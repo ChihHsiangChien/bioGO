@@ -82,6 +82,7 @@
   <div id="students-section">
     <h2>已登入學生</h2>
     <ul id="student-list"></ul>
+    <button id="clear-all-btn">清除所有學生</button>
   </div>
   <div id="activities-section">
     <h2>Activities</h2>
@@ -134,6 +135,13 @@
             list.appendChild(li);
           });
         });
+      // 一鍵清除所有學生 socket
+      const clearAllBtn = document.getElementById('clear-all-btn');
+      clearAllBtn.addEventListener('click', () => {
+        if (confirm('確定要清除所有學生連線嗎？')) {
+          socket.emit('clearAllStudents');
+        }
+      });
     })();
 </script>
   <!-- QR Code floating toggle -->
