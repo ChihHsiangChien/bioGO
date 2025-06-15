@@ -15,14 +15,17 @@ module.exports = function(nsp) {
       growthRate: 0.2,
       minFishPerFamily: 2,
       fishPrice: 10,
-      showLastTurnStats: false, // Controls student visibility
-      showFishChart: false     // Controls student visibility
+      showLastTurnStats: false,    // Controls student visibility
+      showFishChart: false,       // Controls student visibility
+      showTotalCatchLimit: false, // Controls student visibility for total-limit message
+      totalCatchLimit: 100        // Turn-based total catch quota
     };
   }
 
   let gameConfig = { ...defaultConfig };
   let fishPool = gameConfig.initialFish; // Initialize fishPool from config
   let turn = 0;
+  let turnCatchRemaining = gameConfig.totalCatchLimit; // Reset each turn
   const students = {}; // Store student data by socket.id
   // submissionOrder is no longer needed for FCFS distribution logic
 
@@ -32,10 +35,11 @@ module.exports = function(nsp) {
       studentId: student.studentId,
       name: student.name,
       money: student.money || 0,
-      catchThisTurn: student.catchThisTurn || 0, // Actual catch *processed* during this turn
+      catchThisTurn: student.catchThisTurn || 0,
       totalCatch: student.totalCatch || 0,
-      submitted: student.submitted || false, // Has submitted for the *current* turn
-      requestedCatch: student.requestedCatch || 0 // Requested catch for *current* turn (might differ from actual)
+      submitted: student.submitted || false,
+      requestedCatch: student.requestedCatch || 0,
+      banCount: student.banCount || 0
     };
   }
 
@@ -74,6 +78,8 @@ module.exports = function(nsp) {
 
 
   function startTurn() {
+    // Initialize turn catch quota
+    turnCatchRemaining = gameConfig.totalCatchLimit;
     // Reset turn-specific student state
     Object.values(students).forEach(s => {
       if (s) {
@@ -140,6 +146,10 @@ module.exports = function(nsp) {
     // Update teacher view one last time for the ended turn before growth/reset
     sendStudentList();
 
+    // Decrement fishing ban counters after turn ends
+    Object.values(students).forEach(s => {
+      if (s.banCount > 0) s.banCount--;
+    });
     // Prepare for next turn
     turn++;
     startTurn(); // Applies growth, resets submission status, emits turnStarted
@@ -188,16 +198,32 @@ module.exports = function(nsp) {
         if (newConfig.showFishChart !== undefined) {
             gameConfig.showFishChart = !!newConfig.showFishChart;
         }
+        if (newConfig.showTotalCatchLimit !== undefined) {
+            gameConfig.showTotalCatchLimit = !!newConfig.showTotalCatchLimit;
+        }
+        if (newConfig.totalCatchLimit !== undefined) {
+            gameConfig.totalCatchLimit = parseInt(newConfig.totalCatchLimit, 10) || gameConfig.totalCatchLimit;
+        }
 
         teacherSocket.emit('config', gameConfig); // Confirm config back to teacher
         broadcastGameState(); // Send update to students (for their UI toggles)
         sendStudentList(); // Update teacher view (e.g., if fishPool changed)
+      });
+      // teacher sets fishing ban count for a student
+      socket.on('setBan', ({ studentId, banCount }) => {
+        console.log("[Commons Logic] Teacher setBan:", studentId, banCount);
+        Object.values(students).forEach(s => {
+          if (s.studentId === studentId) s.banCount = banCount;
+        });
+        sendStudentList(teacherSocket);
       });
 
       socket.on('startGame', () => {
         console.log("[Commons Logic] Teacher startGame");
         fishPool = gameConfig.initialFish;
         turn = 1;
+        // initialize turn-based total catch quota
+        turnCatchRemaining = gameConfig.totalCatchLimit;
         Object.values(students).forEach(s => {
           if (s) {
             s.money = 0;
@@ -254,8 +280,15 @@ module.exports = function(nsp) {
         } else {
             console.log(`[Commons Logic] Student ${name} (${studentId}) connected with socket ${socket.id}`);
             students[socket.id] = {
-                socket: socket, studentId, name, money: 0, totalCatch: 0,
-                catchThisTurn: 0, requestedCatch: 0, submitted: false
+                socket: socket,
+                studentId,
+                name,
+                money: 0,
+                totalCatch: 0,
+                catchThisTurn: 0,
+                requestedCatch: 0,
+                submitted: false,
+                banCount: 0
             };
             studentEntry = students[socket.id];
         }
@@ -303,16 +336,26 @@ module.exports = function(nsp) {
 
 
         const requested = Math.max(0, parseInt(requestedAmount) || 0);
+        // Ensure students catch at least the minimum required per family
+        if (requested < gameConfig.minFishPerFamily) {
+            socket.emit('catchError', { message: `提交失敗：今年至少要捕 ${gameConfig.minFishPerFamily} 條魚。` });
+            return;
+        }
         student.requestedCatch = requested; // Store what they asked for
         student.submitted = true; // Mark as submitted for this turn
 
         // --- Immediate Processing Logic ---
         // ... (rest of the processing logic remains the same) ...
+        // Enforce fishing ban and total catch quota per turn
         let actualCatch = 0;
         let moneyEarned = 0;
-        if (fishPool > 0) {
-            actualCatch = Math.min(requested, fishPool);
+        if (student.banCount > 0) {
+            // banned from fishing this turn
+            actualCatch = 0;
+        } else if (turnCatchRemaining > 0 && fishPool > 0) {
+            actualCatch = Math.min(requested, fishPool, turnCatchRemaining);
             fishPool -= actualCatch;
+            turnCatchRemaining -= actualCatch;
         } else {
             actualCatch = 0;
         }

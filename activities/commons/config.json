@@ -4,5 +4,7 @@
   "fishPrice": 10,
   "minFishPerFamily": 2,
   "showLastTurnStats": false,
-  "showFishChart": false
+  "showFishChart": false,
+  "showTotalCatchLimit": false,
+  "totalCatchLimit": 100
 }

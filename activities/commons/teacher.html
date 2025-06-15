@@ -99,6 +99,13 @@
       cursor: not-allowed;
     }
 
+    /* General button press feedback */
+    button:active {
+      transform: translateY(1px); /* Slight press down effect */
+      filter: brightness(90%); /* Slightly darken the button */
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.2); /* Optional: subtle inner shadow */
+    }
+
     .toggle-btn {
       background-color: #6c757d;
       width: 100%;
@@ -142,7 +149,7 @@
     <!-- ... config inputs and toggles ... -->
     <h2>遊戲設定</h2>
     <div class="control-panel">
-      <div class="input-group"> <label for="initialFish">池塘原有魚數量</label> <input type="number"
+      <div class="input-group"> <label for="initialFish">池塘魚數量</label> <input type="number"
           id="initialFish" value="100" min="0" /> </div>
       <div class="input-group"> <label for="growthRate">魚群增加率 (%)</label> <input type="number" id="growthRate"
           value="20" min="0" step="1" /> </div>
@@ -150,37 +157,20 @@
           id="minFishPerFamily" value="2" min="0" /> </div>
       <div class="input-group"> <label for="fishPrice">魚價 ($)</label> <input type="number" id="fishPrice"
           value="10" min="0" /> </div>
-      <div class="input-group">
-        <label for="minFishPerFamily">維持家庭最少魚數:</label>
-        <input type="number" id="minFishPerFamily" value="2" min="0" />
-      </div>
-      <div class="input-group"> <label>切換學生端是否可見其他人捕魚狀態</label> <button
-          id="toggle-matrix-btn-config" class="toggle-btn">OFF</button> </div>
-      <div class="input-group"> <label>切換學生端是否可見魚群變化圖</label> <button
-          id="toggle-fish-chart-btn-config" class="toggle-btn">OFF</button> </div>
+      <div class="input-group"> <label for="totalCatchLimit">總量管制 (本年最高捕魚總量)</label> <input type="number" id="totalCatchLimit" value="100" min="0" /> </div>
+      <div class="input-group"> <label>啟用總量管制</label> <button id="toggle-total-limit-btn-config" class="toggle-btn">OFF</button> </div>
+      <div class="input-group"> <label>切換學生端是否可見其他人捕魚狀態</label> <button id="toggle-matrix-btn-config" class="toggle-btn">OFF</button> </div>
+      <div class="input-group"> <label>切換學生端是否可見魚群變化圖</label> <button id="toggle-fish-chart-btn-config" class="toggle-btn">OFF</button> </div>
+    </div>    
+    <div class="action-buttons"> 
+      <button id="start-game-btn">開始遊戲</button> 
+      <button id="update-config-btn">更新即時設定</button> <!-- New Button -->
     </div>
-    <div class="action-buttons"> <button id="start-game-btn">開始遊戲</button> </div>
   </section>
 
   <!-- Game section starts hidden -->
   <section id="game-section" style="display:none;">
-    <h2>遊戲設定 (第 <span id="current-turn">0</span> 年)</h2>
-    <div class="control-panel">
-      <!-- ... game controls ... -->
-      <div class="input-group"> <label for="currentFish">現在魚群數量</label> <input type="number"
-          id="currentFish" min="0" /> </div>
-      <div class="input-group"> <label for="currentGrowthRate">魚群增加率 (%)</label> <input type="number"
-          id="currentGrowthRate" min="0" step="1" /> </div>
-      <div class="input-group"> <label for="minFishPerFamily">維持家庭最少魚數</label> <input type="number"
-          id="minFishPerFamily" value="2" min="0" /> </div>          
-      <div class="input-group"> <label for="currentFishPrice">魚價 ($)</label> <input type="number"
-          id="currentFishPrice" min="0" /> </div>
-      <div class="input-group"> <label>更新現有數據</label> <button id="update-live-btn">更新魚數/增加率/價錢</button> </div>
-      <div class="input-group"> <label>切換學生端是否可見其他人捕魚狀態</label> <button id="toggle-matrix-btn-game"
-          class="toggle-btn">Show</button> </div>
-      <div class="input-group"> <label>切換學生端是否可見魚群變化圖:</label> <button id="toggle-fish-chart-btn-game"
-          class="toggle-btn">Show</button> </div>
-    </div>
+    <h2>遊戲進行 (第 <span id="current-turn">0</span> 年)</h2>
     <div class="action-buttons">
       <button id="end-turn-btn">結束這年</button>
       <button id="end-game-btn">結束遊戲</button>
@@ -193,6 +183,7 @@
         <thead>
           <tr>
             <th>姓名</th>
+            <th>禁漁 (年)</th>
             <th>狀態(今年)</th>
             <th>要求捕獲</th>
             <th>實際捕獲 (今年)</th>
@@ -221,18 +212,16 @@
       const growthRate = document.getElementById('growthRate');
       const minFishPerFamily = document.getElementById('minFishPerFamily');
       const fishPrice = document.getElementById('fishPrice');
+      const totalCatchLimit = document.getElementById('totalCatchLimit');
       const currentTurn = document.getElementById('current-turn');
-      const currentFish = document.getElementById('currentFish');
-      const currentGrowthRate = document.getElementById('currentGrowthRate');
-      const currentFishPrice = document.getElementById('currentFishPrice');
       const studentsSection = document.getElementById('students-section');
       // *** CORRECTED THIS LINE ***
       const studentsTable = document.getElementById('students-table'); // This IS the tbody element
       const toggleMatrixBtnConfig = document.getElementById('toggle-matrix-btn-config');
       const toggleFishChartBtnConfig = document.getElementById('toggle-fish-chart-btn-config');
-      const toggleMatrixBtnGame = document.getElementById('toggle-matrix-btn-game');
-      const toggleFishChartBtnGame = document.getElementById('toggle-fish-chart-btn-game');
-      const updateLiveBtn = document.getElementById('update-live-btn');
+      const toggleTotalLimitBtnConfig = document.getElementById('toggle-total-limit-btn-config');
+      // No separate game-section toggles: reuse config-section controls
+      const updateConfigBtn = document.getElementById('update-config-btn'); // New button
       const startGameBtn = document.getElementById('start-game-btn');
       const endTurnBtn = document.getElementById('end-turn-btn');
       const endGameBtn = document.getElementById('end-game-btn');
@@ -250,10 +239,10 @@
       // --- Helper Functions ---
       function updateToggleButtons(matrixVisible, chartVisible) {
         showMatrixForStudents = matrixVisible; showFishChartForStudents = chartVisible;
-        toggleMatrixBtnConfig.classList.toggle('active', showMatrixForStudents); toggleMatrixBtnConfig.textContent = showMatrixForStudents ? 'ON' : 'OFF';
-        toggleFishChartBtnConfig.classList.toggle('active', showFishChartForStudents); toggleFishChartBtnConfig.textContent = showFishChartForStudents ? 'ON' : 'OFF';
-        toggleMatrixBtnGame.classList.toggle('active', showMatrixForStudents); toggleMatrixBtnGame.textContent = showMatrixForStudents ? 'Hide' : 'Show';
-        toggleFishChartBtnGame.classList.toggle('active', showFishChartForStudents); toggleFishChartBtnGame.textContent = showFishChartForStudents ? 'Hide' : 'Show';
+        toggleMatrixBtnConfig.classList.toggle('active', showMatrixForStudents);
+        toggleMatrixBtnConfig.textContent = showMatrixForStudents ? 'ON' : 'OFF';
+        toggleFishChartBtnConfig.classList.toggle('active', showFishChartForStudents);
+        toggleFishChartBtnConfig.textContent = showFishChartForStudents ? 'ON' : 'OFF';
       }
 
       function updateStudentTable(studentsFromServer = []) {
@@ -265,9 +254,27 @@
         studentsTable.innerHTML = ''; // This line was causing the error if studentsTable was undefined
         studentData = {};
         studentsFromServer.forEach(s => {
-          studentData[s.studentId] = s; const tr = document.createElement('tr'); tr.setAttribute('data-studentid', s.studentId);
-          const statusClass = s.submitted ? 'status-submitted' : 'status-pending'; const statusText = s.submitted ? 'Submitted' : 'Pending';
-          tr.innerHTML = `<td>${s.name}</td><td class="${statusClass}">${statusText}</td><td>${s.submitted ? (s.requestedCatch ?? '-') : '-'}</td><td>${s.catchThisTurn ?? '-'}</td><td>$${s.money ?? 0}</td>`;
+          studentData[s.studentId] = s;
+          const tr = document.createElement('tr');
+          tr.setAttribute('data-studentid', s.studentId);
+          const statusClass = s.submitted ? 'status-submitted' : 'status-pending';
+          const statusText = s.submitted ? 'Submitted' : 'Pending';
+          // Ban input and student status cells
+          tr.innerHTML = `
+            <td>${s.name}</td>
+            <td><input type="number" class="ban-input" min="0" value="${s.banCount ?? 0}" style="width:50px;" /></td>
+            <td class="${statusClass}">${statusText}</td>
+            <td>${s.submitted ? (s.requestedCatch ?? '-') : '-'}</td>
+            <td>${s.catchThisTurn ?? '-'}</td>
+            <td>$${s.money ?? 0}</td>
+          `;
+          // Handle ban input change
+          const banInputEl = tr.querySelector('.ban-input');
+          banInputEl.addEventListener('change', () => {
+            const newBan = parseInt(banInputEl.value, 10) || 0;
+            console.log(`[Commons Teacher] setBan for ${s.studentId} -> ${newBan}`);
+            socket.emit('setBan', { studentId: s.studentId, banCount: newBan });
+          });
           studentsTable.appendChild(tr);
         });
       }
@@ -303,52 +310,127 @@
 
       // --- Socket Event Handlers ---
       socket.on('connect', () => { console.log('[Commons Teacher] Connected.'); });
-      socket.on('disconnect', () => { console.log('[Commons Teacher] Disconnected.'); alert('Disconnected. Please refresh.'); configSection.style.display = 'block'; gameSection.style.display = 'none'; });
+      socket.on('disconnect', () => { console.log('[Commons Teacher] Disconnected.'); alert('Disconnected. Please refresh.'); gameSection.style.display = 'none'; });
       socket.on('config', cfg => {
-        console.log('[Commons Teacher] Received config:', cfg); gameConfigState = cfg; initialFish.value = cfg.initialFish ?? 100; growthRate.value = (cfg.growthRate ?? 0.2) * 100; minFishPerFamily.value = cfg.minFishPerFamily ?? 2; fishPrice.value = cfg.fishPrice ?? 10; currentGrowthRate.value = (cfg.growthRate ?? 0.2) * 100; currentFishPrice.value = cfg.fishPrice ?? 10; updateToggleButtons(!!cfg.showLastTurnStats, !!cfg.showFishChart);
+        console.log('[Commons Teacher] Received config:', cfg);
+        gameConfigState = cfg;
+        initialFish.value = cfg.initialFish ?? 100;
+        growthRate.value = (cfg.growthRate ?? 0.2) * 100;
+        minFishPerFamily.value = cfg.minFishPerFamily ?? 2;
+        fishPrice.value = cfg.fishPrice ?? 10;
+        totalCatchLimit.value = cfg.totalCatchLimit ?? cfg.initialFish ?? 100;
+        updateToggleButtons(!!cfg.showLastTurnStats, !!cfg.showFishChart);
       });
       socket.on('updateStudentList', data => {
-        console.log('[Commons Teacher] Received student list update:', data); currentFish.value = data.fishPool ?? currentFish.value; currentTurn.textContent = data.turn ?? currentTurn.textContent;
+        console.log('[Commons Teacher] Received student list update:', data);
+        currentTurn.textContent = data.turn ?? currentTurn.textContent;
         // Ensure updateStudentTable is called AFTER the DOM element is confirmed available
         updateStudentTable(data.students);
         if (data.fishPool !== undefined && data.turn !== undefined) {
           // Use 'Start' label for turn 0, otherwise use the turn number
           const currentChartTurnLabel = data.turn > 0 ? `第 ${data.turn} 年` : 'Start';
+          // Update the initialFish input field and gameConfigState
+          if (initialFish && data.fishPool !== undefined) {
+            initialFish.value = data.fishPool;
+            gameConfigState.initialFish = data.fishPool;
+          }
           if (fishChart) { updateChart(currentChartTurnLabel, data.fishPool); }
           // If chart doesn't exist and it's turn 0 (or pre-game), initialize
           else if (data.turn === 0 || !fishChart) { initializeChart(data.fishPool); }
         }
       });
       socket.on('gameStarted', data => {
-        console.log('[Commons Teacher] Game started:', data); configSection.style.display = 'none'; gameSection.style.display = 'block'; currentTurn.textContent = 1; currentFish.value = data.fishPool ?? 0;
-        if (data.config) { gameConfigState = data.config; updateToggleButtons(!!data.config.showLastTurnStats, !!data.config.showFishChart); }
+        console.log('[Commons Teacher] Game started:', data);
+        configSection.style.display = 'block';
+        gameSection.style.display = 'block';
+        currentTurn.textContent = 1;
+        if (data.config) { 
+          gameConfigState = data.config; 
+          updateToggleButtons(!!data.config.showLastTurnStats, !!data.config.showFishChart); 
+        }
         initializeChart(data.fishPool ?? 0); updateStudentTable([]);
+        // Sync initialFish display
+        if (initialFish && data.fishPool !== undefined) {
+          initialFish.value = data.fishPool;
+          gameConfigState.initialFish = data.fishPool;
+        }
       });
       socket.on('turnStarted', data => {
         console.log('[Commons Teacher] Turn started:', data);
         currentTurn.textContent = data.turn ?? currentTurn.textContent;
         if (data.fishPool !== undefined) {
-          currentFish.value = data.fishPool;
+          // Update the initialFish input field and gameConfigState
+          if (initialFish) {
+            initialFish.value = data.fishPool;
+            gameConfigState.initialFish = data.fishPool;
+          }
           updateChart(`Turn ${data.turn}`, data.fishPool); // Use Turn X label
         }
         // Check if config data is present in the event payload
         if (data.config) {
           gameConfigState = data.config; // Update local state
           // *** CORRECTED: Use data.config instead of cfg ***
-          currentGrowthRate.value = (data.config.growthRate ?? 0.2) * 100;
-          currentFishPrice.value = (data.config.fishPrice ?? 10);
           // Update toggle buttons based on the received config flags
           updateToggleButtons(!!data.config.showLastTurnStats, !!data.config.showFishChart);
         }
       });
       socket.on('gameEnded', data => {
-        console.log('[Commons Teacher] Game ended:', data); alert(`Game Over! Final Fish Pool: ${data.fishPool}`); updateStudentTable(data.finalStats); configSection.style.display = 'block'; gameSection.style.display = 'none'; currentTurn.textContent = 0; studentData = {};
+        console.log('[Commons Teacher] Game ended:', data);
+        alert(`Game Over! Final Fish Pool: ${data.fishPool}`);
+        updateStudentTable(data.finalStats); // 這會更新學生表格以顯示最終數據
+
+        // 為了讓教師可以看到遊戲最後的狀態，註解或移除以下兩行：
+        // configSection.style.display = 'block'; // 不要立即顯示設定區塊
+        // gameSection.style.display = 'none';    // 保持遊戲區塊（包含最終統計）可見
+
+        // 更新回合數顯示，標明遊戲結束，而不是重設為0
+        currentTurn.textContent += " (遊戲結束)";
+        // studentData = {}; // updateStudentTable 函數內部已用 data.finalStats 更新 studentData，此處的清空是不必要的，且會清除最終狀態。
       });
       // --- Event Listeners for Controls ---
-      toggleMatrixBtnConfig.addEventListener('click', () => { showMatrixForStudents = !showMatrixForStudents; updateToggleButtons(showMatrixForStudents, showFishChartForStudents); });
-      toggleFishChartBtnConfig.addEventListener('click', () => { showFishChartForStudents = !showFishChartForStudents; updateToggleButtons(showMatrixForStudents, showFishChartForStudents); });
-      toggleMatrixBtnGame.addEventListener('click', () => { showMatrixForStudents = !showMatrixForStudents; updateToggleButtons(showMatrixForStudents, showFishChartForStudents); console.log(`[Commons Teacher] Emitting setConfig: showLastTurnStats=${showMatrixForStudents}`); socket.emit('setConfig', { showLastTurnStats: showMatrixForStudents }); });
-      toggleFishChartBtnGame.addEventListener('click', () => { showFishChartForStudents = !showFishChartForStudents; updateToggleButtons(showMatrixForStudents, showFishChartForStudents); console.log(`[Commons Teacher] Emitting setConfig: showFishChart=${showFishChartForStudents}`); socket.emit('setConfig', { showFishChart: showFishChartForStudents }); });
+      toggleMatrixBtnConfig.addEventListener('click', () => {
+        showMatrixForStudents = !showMatrixForStudents;
+        updateToggleButtons(showMatrixForStudents, showFishChartForStudents);
+        console.log(`[Commons Teacher] Emitting setConfig: showLastTurnStats=${showMatrixForStudents}`);
+        socket.emit('setConfig', { showLastTurnStats: showMatrixForStudents });
+      });
+      toggleFishChartBtnConfig.addEventListener('click', () => {
+        showFishChartForStudents = !showFishChartForStudents;
+        updateToggleButtons(showMatrixForStudents, showFishChartForStudents);
+        console.log(`[Commons Teacher] Emitting setConfig: showFishChart=${showFishChartForStudents}`);
+        socket.emit('setConfig', { showFishChart: showFishChartForStudents });
+      });
+      toggleTotalLimitBtnConfig.addEventListener('click', () => {
+        const enabled = !gameConfigState.showTotalCatchLimit;
+        gameConfigState.showTotalCatchLimit = enabled;
+        // 讀取教師頁面上的 totalCatchLimit 當前值
+        const currentTotalCatchLimit = parseInt(totalCatchLimit.value, 10);
+        // 更新 gameConfigState 中的值，以便下次讀取時是最新的
+        gameConfigState.totalCatchLimit = isNaN(currentTotalCatchLimit) ? (gameConfigState.initialFish ?? 100) : currentTotalCatchLimit;
+
+        toggleTotalLimitBtnConfig.classList.toggle('active', enabled);
+        toggleTotalLimitBtnConfig.textContent = enabled ? 'ON' : 'OFF';
+        console.log(`[Commons Teacher] Emitting setConfig: showTotalCatchLimit=${enabled}, totalCatchLimit=${gameConfigState.totalCatchLimit}`);
+        socket.emit('setConfig', { showTotalCatchLimit: enabled, totalCatchLimit: gameConfigState.totalCatchLimit });
+      });
+
+      // New "Update Config" Button Listener
+      updateConfigBtn.addEventListener('click', () => {
+        const currentGrowthRate = parseFloat(growthRate.value) / 100;
+        const cfgToUpdate = {
+          // Send initialFish value as fishPool to allow immediate update of the live fish pool
+          fishPool: parseInt(initialFish.value, 10), 
+          growthRate: isNaN(currentGrowthRate) ? gameConfigState.growthRate : currentGrowthRate,
+          minFishPerFamily: parseInt(minFishPerFamily.value, 10),
+          fishPrice: parseInt(fishPrice.value, 10),
+          totalCatchLimit: parseInt(totalCatchLimit.value, 10)
+        };
+        // Filter out NaN or undefined values before sending, or rely on backend to use defaults
+        // For simplicity, we send them, and backend logic should handle invalid values gracefully.
+        console.log('[Commons Teacher] Emitting setConfig for live update:', cfgToUpdate);
+        socket.emit('setConfig', cfgToUpdate);
+      });
+
       // Start Game Button
       startGameBtn.addEventListener('click', () => {
         const initialGrowthRate = parseFloat(growthRate.value) / 100;
@@ -357,6 +439,7 @@
           growthRate: isNaN(initialGrowthRate) ? 0.2 : initialGrowthRate,
           minFishPerFamily: parseInt(minFishPerFamily.value, 10),
           fishPrice: parseInt(fishPrice.value, 10),
+          totalCatchLimit: parseInt(totalCatchLimit.value, 10),
           showLastTurnStats: showMatrixForStudents,
           showFishChart: showFishChartForStudents
         };
@@ -364,22 +447,15 @@
         socket.emit('setConfig', cfg);
         socket.emit('startGame');
       });
-      // Update Live Values Button
-      updateLiveBtn.addEventListener('click', () => {
-        const liveGrowthRate = parseFloat(currentGrowthRate.value) / 100;
-        const cfg = {
-          fishPool: parseInt(currentFish.value, 10),
-          growthRate: isNaN(liveGrowthRate) ? gameConfigState.growthRate : liveGrowthRate,
-          fishPrice: parseInt(currentFishPrice.value, 10)
-        };
-        console.log('[Commons Teacher] Emitting setConfig (Update Live):', cfg);
-        socket.emit('setConfig', cfg);
-      });
       // End Turn Button
       endTurnBtn.addEventListener('click', () => { console.log('[Commons Teacher] Emitting endTurn'); socket.emit('endTurn'); });
       // End Game Button
-      endGameBtn.addEventListener('click', () => { if (confirm('Are you sure you want to end the game?')) { console.log('[Commons Teacher] Emitting endGame'); socket.emit('endGame'); } });
-
+      endGameBtn.addEventListener('click', () => {
+        if (confirm('Are you sure you want to end the game?')) {
+          console.log('[Commons Teacher] Emitting endGame');
+          socket.emit('endGame');
+        }
+      });
     })();
   </script>
 
