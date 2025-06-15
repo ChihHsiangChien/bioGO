@@ -17,8 +17,10 @@ module.exports = function(nsp) {
       fishPrice: 10,
       showLastTurnStats: false,    // Controls student visibility
       showFishChart: false,       // Controls student visibility
-      showTotalCatchLimit: false, // Controls student visibility for total-limit message
-      totalCatchLimit: 100        // Turn-based total catch quota
+      showTotalCatchLimit: false, // 顯示是否總量管制
+      totalCatchLimit: 100,       // 總漁獲管制
+      enablePersonalCatchLimit: false, // 是否啟用個人上限
+      personalCatchLimitValue: 50    // 個人捕撈上限
     };
   }
 
@@ -220,6 +222,12 @@ module.exports = function(nsp) {
         if (newConfig.totalCatchLimit !== undefined) {
             gameConfig.totalCatchLimit = parseInt(newConfig.totalCatchLimit, 10) || gameConfig.totalCatchLimit;
         }
+        if (newConfig.enablePersonalCatchLimit !== undefined) { // New
+            gameConfig.enablePersonalCatchLimit = !!newConfig.enablePersonalCatchLimit;
+        }
+        if (newConfig.personalCatchLimitValue !== undefined) { // New
+            gameConfig.personalCatchLimitValue = parseInt(newConfig.personalCatchLimitValue, 10) || gameConfig.personalCatchLimitValue;
+        }
 
         teacherSocket.emit('config', gameConfig); // Confirm config back to teacher
         broadcastGameState(); // Send update to students (for their UI toggles)
@@ -372,7 +380,12 @@ module.exports = function(nsp) {
             // The error message should still use student.banCount as it reflects the sentence including the current turn
             socket.emit('catchError', { message: `您本回合被禁漁，無法捕魚。剩餘禁漁 ${student.banCount} 回合。` });
         } else if (turnCatchRemaining > 0 && fishPool > 0) {
-            actualCatch = Math.min(requested, fishPool, turnCatchRemaining);
+            let maxAllowedByPersonalLimit = Infinity;
+            if (gameConfig.enablePersonalCatchLimit) {
+                maxAllowedByPersonalLimit = gameConfig.personalCatchLimitValue;
+            }
+            actualCatch = Math.min(requested, fishPool, turnCatchRemaining, maxAllowedByPersonalLimit);
+
             fishPool -= actualCatch;
             turnCatchRemaining -= actualCatch;
         } else {

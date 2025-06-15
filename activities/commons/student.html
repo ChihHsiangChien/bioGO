@@ -48,6 +48,7 @@
           <div class="info-panel">
               <p id="fish-pool-section" style="display: none;">池裡有多少魚: <strong id="fishPool">?</strong></p>
               <p id="limit-info" class="status-warning" style="display: none;">總量管制中，本年限制捕撈數量 <span id="limit-value"></span></p>
+              <p id="personal-limit-info" class="status-warning" style="display: none;">個人捕撈上限：本年最多捕撈 <span id="personal-limit-value"></span> 條魚</p>
               <p id="money-display">你的財產: $<span id="money">0</span></p>
               <p id="total-catch-display">你的總漁獲量: <span id="totalCatch">0</span> 條魚</p>
           </div>
@@ -115,6 +116,8 @@
       const fishPoolEl = document.getElementById('fishPool');
       const limitInfo = document.getElementById('limit-info');
       const limitValue = document.getElementById('limit-value');
+      const personalLimitInfo = document.getElementById('personal-limit-info'); // New element
+      const personalLimitValue = document.getElementById('personal-limit-value'); // New element
       const moneyEl = document.getElementById('money');
       const totalCatchEl = document.getElementById('totalCatch');
       const catchInput = document.getElementById('catchAmount');
@@ -167,6 +170,13 @@
               limitValue.textContent = gameConfig.totalCatchLimit;
           } else {
               limitInfo.style.display = 'none';
+          }
+          // Toggle personal catch limit display
+          if (gameConfig.enablePersonalCatchLimit) {
+              personalLimitInfo.style.display = 'block';
+              personalLimitValue.textContent = gameConfig.personalCatchLimitValue;
+          } else {
+              personalLimitInfo.style.display = 'none';
           }
       }
 

@@ -157,6 +157,8 @@
           id="minFishPerFamily" value="2" min="0" /> </div>
       <div class="input-group"> <label for="fishPrice">魚價 ($)</label> <input type="number" id="fishPrice"
           value="10" min="0" /> </div>
+      <div class="input-group"> <label for="personalCatchLimitValue">個人捕撈上限</label> <input type="number" id="personalCatchLimitValue" value="50" min="0" /> </div>
+      <div class="input-group"> <label>啟用個人捕撈上限</label> <button id="toggle-personal-limit-btn-config" class="toggle-btn">OFF</button> </div>
       <div class="input-group"> <label for="totalCatchLimit">總量管制 (本年最高捕魚總量)</label> <input type="number" id="totalCatchLimit" value="100" min="0" /> </div>
       <div class="input-group"> <label>啟用總量管制</label> <button id="toggle-total-limit-btn-config" class="toggle-btn">OFF</button> </div>
       <div class="input-group"> <label>切換學生端是否可見其他人捕魚狀態</label> <button id="toggle-matrix-btn-config" class="toggle-btn">OFF</button> </div>
@@ -214,12 +216,14 @@
       const minFishPerFamily = document.getElementById('minFishPerFamily');
       const fishPrice = document.getElementById('fishPrice');
       const totalCatchLimit = document.getElementById('totalCatchLimit');
+      const personalCatchLimitValue = document.getElementById('personalCatchLimitValue'); // New
       const currentTurn = document.getElementById('current-turn');
       const studentsSection = document.getElementById('students-section');
       // *** CORRECTED THIS LINE ***
       const studentsTable = document.getElementById('students-table'); // This IS the tbody element
       const toggleMatrixBtnConfig = document.getElementById('toggle-matrix-btn-config');
       const toggleFishChartBtnConfig = document.getElementById('toggle-fish-chart-btn-config');
+      const togglePersonalLimitBtnConfig = document.getElementById('toggle-personal-limit-btn-config'); // New
       const toggleTotalLimitBtnConfig = document.getElementById('toggle-total-limit-btn-config');
       // No separate game-section toggles: reuse config-section controls
       const updateConfigBtn = document.getElementById('update-config-btn'); // New button
@@ -320,6 +324,11 @@
         minFishPerFamily.value = cfg.minFishPerFamily ?? 2;
         fishPrice.value = cfg.fishPrice ?? 10;
         totalCatchLimit.value = cfg.totalCatchLimit ?? cfg.initialFish ?? 100;
+        personalCatchLimitValue.value = cfg.personalCatchLimitValue ?? 50; // New
+        
+        togglePersonalLimitBtnConfig.classList.toggle('active', !!cfg.enablePersonalCatchLimit); // New
+        togglePersonalLimitBtnConfig.textContent = cfg.enablePersonalCatchLimit ? 'ON' : 'OFF'; // New
+
         updateToggleButtons(!!cfg.showLastTurnStats, !!cfg.showFishChart);
       });
       socket.on('updateStudentList', data => {
@@ -414,6 +423,19 @@
         console.log(`[Commons Teacher] Emitting setConfig: showTotalCatchLimit=${enabled}, totalCatchLimit=${gameConfigState.totalCatchLimit}`);
         socket.emit('setConfig', { showTotalCatchLimit: enabled, totalCatchLimit: gameConfigState.totalCatchLimit });
       });
+      
+      togglePersonalLimitBtnConfig.addEventListener('click', () => { // New listener
+        const enabled = !gameConfigState.enablePersonalCatchLimit;
+        gameConfigState.enablePersonalCatchLimit = enabled;
+        const currentPersonalLimit = parseInt(personalCatchLimitValue.value, 10);
+        gameConfigState.personalCatchLimitValue = isNaN(currentPersonalLimit) ? 50 : currentPersonalLimit;
+
+        togglePersonalLimitBtnConfig.classList.toggle('active', enabled);
+        togglePersonalLimitBtnConfig.textContent = enabled ? 'ON' : 'OFF';
+        console.log(`[Commons Teacher] Emitting setConfig: enablePersonalCatchLimit=${enabled}, personalCatchLimitValue=${gameConfigState.personalCatchLimitValue}`);
+        socket.emit('setConfig', { enablePersonalCatchLimit: enabled, personalCatchLimitValue: gameConfigState.personalCatchLimitValue });
+      });
+
 
       // New "Update Config" Button Listener
       updateConfigBtn.addEventListener('click', () => {
@@ -424,7 +446,9 @@
           growthRate: isNaN(currentGrowthRate) ? gameConfigState.growthRate : currentGrowthRate,
           minFishPerFamily: parseInt(minFishPerFamily.value, 10),
           fishPrice: parseInt(fishPrice.value, 10),
-          totalCatchLimit: parseInt(totalCatchLimit.value, 10)
+          totalCatchLimit: parseInt(totalCatchLimit.value, 10),
+          enablePersonalCatchLimit: gameConfigState.enablePersonalCatchLimit, // Add current state of toggle
+          personalCatchLimitValue: parseInt(personalCatchLimitValue.value, 10) // Add current value
         };
         // Filter out NaN or undefined values before sending, or rely on backend to use defaults
         // For simplicity, we send them, and backend logic should handle invalid values gracefully.
@@ -441,7 +465,9 @@
           minFishPerFamily: parseInt(minFishPerFamily.value, 10),
           fishPrice: parseInt(fishPrice.value, 10),
           totalCatchLimit: parseInt(totalCatchLimit.value, 10),
-          showLastTurnStats: showMatrixForStudents,
+          enablePersonalCatchLimit: gameConfigState.enablePersonalCatchLimit, // Add from state
+          personalCatchLimitValue: parseInt(personalCatchLimitValue.value, 10), // Add from input
+          showLastTurnStats: showMatrixForStudents, // Keep existing
           showFishChart: showFishChartForStudents
         };
         console.log('[Commons Teacher] Emitting startGame with config:', cfg);
