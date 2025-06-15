@@ -86,6 +86,8 @@ module.exports = function(nsp) {
         s.catchThisTurn = 0; // Reset actual catch *for this turn*
         s.requestedCatch = 0;
         s.submitted = false;
+        // Determine and set if the student is effectively banned for THIS turn
+        s.isEffectivelyBannedThisTurn = (s.banCount > 0);
       }
     });
 
@@ -98,6 +100,16 @@ module.exports = function(nsp) {
       turn,
       config: gameConfig,
       fishPool: gameConfig.showFishChart ? fishPool : undefined // Send initial pool if visible
+    });
+    // Send individual state update to each student, including banCount
+    Object.values(students).forEach(s => {
+      if (s && s.socket) { // Check if student object and socket exist
+        s.socket.emit('studentStateUpdate', {
+          money: s.money, totalCatch: s.totalCatch,
+          submitted: s.submitted, requestedCatch: s.requestedCatch,
+          banCount: s.banCount // Ensure banCount is sent
+        });
+      }
     });
     sendStudentList(); // Update teacher view at start of turn
   }
@@ -147,8 +159,12 @@ module.exports = function(nsp) {
     sendStudentList();
 
     // Decrement fishing ban counters after turn ends
+    // Only decrement if the student was actually banned and served it this turn
     Object.values(students).forEach(s => {
-      if (s.banCount > 0) s.banCount--;
+      if (s.isEffectivelyBannedThisTurn && s.banCount > 0) {
+        s.banCount--;
+      }
+      delete s.isEffectivelyBannedThisTurn; // Clean up temporary flag
     });
     // Prepare for next turn
     turn++;
@@ -302,7 +318,8 @@ module.exports = function(nsp) {
            });
            socket.emit('studentStateUpdate', {
                money: studentEntry.money, totalCatch: studentEntry.totalCatch,
-               submitted: studentEntry.submitted, requestedCatch: studentEntry.requestedCatch
+               submitted: studentEntry.submitted, requestedCatch: studentEntry.requestedCatch,
+               banCount: studentEntry.banCount // Add banCount here for connecting students
            });
        } else {
             socket.emit('waiting');
@@ -349,9 +366,11 @@ module.exports = function(nsp) {
         // Enforce fishing ban and total catch quota per turn
         let actualCatch = 0;
         let moneyEarned = 0;
-        if (student.banCount > 0) {
-            // banned from fishing this turn
+        // Check the ban status determined at the start of the turn
+        if (student.isEffectivelyBannedThisTurn) {
             actualCatch = 0;
+            // The error message should still use student.banCount as it reflects the sentence including the current turn
+            socket.emit('catchError', { message: `您本回合被禁漁，無法捕魚。剩餘禁漁 ${student.banCount} 回合。` });
         } else if (turnCatchRemaining > 0 && fishPool > 0) {
             actualCatch = Math.min(requested, fishPool, turnCatchRemaining);
             fishPool -= actualCatch;

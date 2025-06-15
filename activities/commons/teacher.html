@@ -163,8 +163,10 @@
       <div class="input-group"> <label>切換學生端是否可見魚群變化圖</label> <button id="toggle-fish-chart-btn-config" class="toggle-btn">OFF</button> </div>
     </div>    
     <div class="action-buttons"> 
+      <button id="update-config-btn">更新即時設定</button>      
       <button id="start-game-btn">開始遊戲</button> 
-      <button id="update-config-btn">更新即時設定</button> <!-- New Button -->
+      <button id="end-game-btn">結束遊戲</button>      
+      
     </div>
   </section>
 
@@ -173,7 +175,6 @@
     <h2>遊戲進行 (第 <span id="current-turn">0</span> 年)</h2>
     <div class="action-buttons">
       <button id="end-turn-btn">結束這年</button>
-      <button id="end-game-btn">結束遊戲</button>
     </div>
 
     <!-- Student Status section - always visible when #game-section is visible -->
@@ -258,7 +259,7 @@
           const tr = document.createElement('tr');
           tr.setAttribute('data-studentid', s.studentId);
           const statusClass = s.submitted ? 'status-submitted' : 'status-pending';
-          const statusText = s.submitted ? 'Submitted' : 'Pending';
+          const statusText = s.submitted ? '已提交' : '等待中';
           // Ban input and student status cells
           tr.innerHTML = `
             <td>${s.name}</td>

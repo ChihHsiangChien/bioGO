@@ -54,6 +54,7 @@
 
           <div id="action-section">
               <p>今年你想要抓多少魚？</p>
+              <p id="ban-status" class="status-message status-warning" style="display: none;"></p>
               <input type="number" id="catchAmount" min="0" value="0" />
               <button id="submitCatchBtn">開始捕捉</button>
               <p id="submission-status" class="status-message" style="display: none;"></p>
@@ -119,6 +120,7 @@
       const catchInput = document.getElementById('catchAmount');
       const submitCatchBtn = document.getElementById('submitCatchBtn');
       const submissionStatusEl = document.getElementById('submission-status');
+      const banStatusEl = document.getElementById('ban-status'); 
       const lastTurnStatsDiv = document.getElementById('last-turn-stats');
       const minFishRequiredEl = document.getElementById('minFishRequired');
       const statsTableBody = document.getElementById('statsTable').getElementsByTagName('tbody')[0];
@@ -314,10 +316,22 @@
         if (state.requestedCatch !== undefined) {
           catchInput.value = state.requestedCatch;
         }
-        if (state.submitted) {
+
+        // Handle ban status first, as it overrides submission status for input disabling
+        if (state.banCount !== undefined && state.banCount > 0) {
+          banStatusEl.textContent = `您本回合被禁漁，無法捕魚。剩餘禁漁 ${state.banCount} 回合。`;
+          banStatusEl.style.display = 'block';
           catchInput.disabled = true;
           submitCatchBtn.disabled = true;
-          showStatusMessage('已提交此回合', 'info');
+          hideStatusMessage(); // Hide other submission status messages if banned
+        } else {
+          banStatusEl.style.display = 'none'; // Not banned
+          // If not banned, check if submitted
+          if (state.submitted) {
+            catchInput.disabled = true;
+            submitCatchBtn.disabled = true;
+            showStatusMessage('已提交此回合', 'info');
+          } // If not banned and not submitted, inputs remain enabled from resetTurnUI
         }
       });
       
@@ -342,6 +356,8 @@
         }
         resetTurnUI(); // Enable inputs
         hideStatusMessage(); // Clear status message
+        if (banStatusEl) banStatusEl.style.display = 'none'; // Hide ban status on reset
+
       });
 
       // Handles the start of each turn (after the first)
