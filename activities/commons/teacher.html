@@ -202,6 +202,11 @@
       <h3>魚群隨時間變化圖</h3>
       <canvas id="fishChart"></canvas>
     </div>
+    <!-- Add new chart area for total catch -->
+    <div id="totalCatchChartSection" class="chart-container">
+      <h3>每年總捕撈量</h3>
+      <canvas id="totalCatchChart"></canvas>
+    </div>
   </section>
 
   <script>
@@ -233,6 +238,7 @@
       const chartSection = document.getElementById('chart-section');
       const fishChartCanvas = document.getElementById('fishChart');
       // State
+      const totalCatchChartCanvas = document.getElementById('totalCatchChart'); // Get new canvas
       let gameConfigState = {};
       let showMatrixForStudents = false;
       let showFishChartForStudents = false;
@@ -240,12 +246,15 @@
       let fishData = [];
       let fishLabels = [];
       let studentData = {};
+      let totalCatchChart = null; // Declare totalCatchChart here
+
 
       // --- Helper Functions ---
       function updateToggleButtons(matrixVisible, chartVisible) {
         showMatrixForStudents = matrixVisible; showFishChartForStudents = chartVisible;
         toggleMatrixBtnConfig.classList.toggle('active', showMatrixForStudents);
         toggleMatrixBtnConfig.textContent = showMatrixForStudents ? 'ON' : 'OFF';
+
         toggleFishChartBtnConfig.classList.toggle('active', showFishChartForStudents);
         toggleFishChartBtnConfig.textContent = showFishChartForStudents ? 'ON' : 'OFF';
       }
@@ -284,10 +293,48 @@
         });
       }
 
-      function initializeChart(initialPoolValue) {
-        const ctx = fishChartCanvas.getContext('2d'); fishData = [initialPoolValue]; fishLabels = ['Start']; if (fishChart) { fishChart.destroy(); }
-        fishChart = new Chart(ctx, { type: 'line', data: { labels: fishLabels, datasets: [{ label: 'Fish Pool Size', data: fishData, borderColor: '#007bff', backgroundColor: 'rgba(0, 123, 255, 0.1)', fill: true, tension: 0.1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'Number of Fish' } }, x: { title: { display: true, text: '年' } } }, plugins: { title: { display: true, text: 'Fish Pool Over Time' } } } });
-      }
+function initializeChart(initialPoolValue) {
+    const ctx = fishChartCanvas.getContext('2d');
+    fishData = [initialPoolValue];
+    fishLabels = ['Start'];
+    if (fishChart) { fishChart.destroy(); }
+    fishChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: fishLabels,
+            datasets: [{
+                label: 'Fish Pool Size',
+                data: fishData,
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                fill: true,
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Number of Fish' }
+                },
+                x: {
+                    title: { display: true, text: '年' }
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Fish Pool Over Time'
+                }
+            }
+        }
+    });
+    // Initialize total catch chart with empty data
+    initializeTotalCatchChart([]);
+}
+
 
       function updateChart(turn, poolValue) {
         if (!fishChart) return; const label = `第 ${turn} 年`; const lastLabel = fishLabels[fishLabels.length - 1];
@@ -312,6 +359,46 @@
         }
         fishChart.update();
       }
+
+function initializeTotalCatchChart(catchData) {
+    const ctx = totalCatchChartCanvas.getContext('2d');
+    const labels = catchData.map((_, index) => `第 ${index + 1} 年`);
+
+    if (totalCatchChart) { totalCatchChart.destroy(); }
+    totalCatchChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels, // Initially empty or based on pre-existing data
+            datasets: [{
+                label: '總捕撈量',
+                data: catchData,
+                backgroundColor: '#28a745' // Green for catch
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: '總捕撈量' }
+                },
+                x: {
+                    title: { display: true, text: '年' }
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: '每年總捕撈量'
+                },
+                legend: { display: false } // Hide legend for single dataset
+            }
+        }
+    });
+}
+
+
 
       // --- Socket Event Handlers ---
       socket.on('connect', () => { console.log('[Commons Teacher] Connected.'); });
@@ -347,6 +434,8 @@
           if (fishChart) { updateChart(currentChartTurnLabel, data.fishPool); }
           // If chart doesn't exist and it's turn 0 (or pre-game), initialize
           else if (data.turn === 0 || !fishChart) { initializeChart(data.fishPool); }
+
+          updateTotalCatchChart(data.totalCatchesPerTurn || []);
         }
       });
       socket.on('gameStarted', data => {
@@ -358,6 +447,8 @@
           gameConfigState = data.config; 
           updateToggleButtons(!!data.config.showLastTurnStats, !!data.config.showFishChart); 
         }
+        // Ensure total catch chart section is visible when game starts
+        document.getElementById('totalCatchChartSection').style.display = 'block';
         initializeChart(data.fishPool ?? 0); updateStudentTable([]);
         // Sync initialFish display
         if (initialFish && data.fishPool !== undefined) {
@@ -388,6 +479,9 @@
         console.log('[Commons Teacher] Game ended:', data);
         alert(`Game Over! Final Fish Pool: ${data.fishPool}`);
         updateStudentTable(data.finalStats); // 這會更新學生表格以顯示最終數據
+        if (data.totalCatchesPerTurn) {
+          updateTotalCatchChart(data.totalCatchesPerTurn); // 更新總捕撈圖表
+        }
 
         // 為了讓教師可以看到遊戲最後的狀態，註解或移除以下兩行：
         // configSection.style.display = 'block'; // 不要立即顯示設定區塊
@@ -483,7 +577,26 @@
           socket.emit('endGame');
         }
       });
-    })();
+    
+  function updateTotalCatchChart(totalCatches) {
+      if (!totalCatchChart) {
+          console.warn("[Teacher Chart] Total catch chart not initialized yet.");
+          return; // Exit if the chart isn't ready.
+      }
+      // Ensure totalCatches is an array; use an empty array as a safe default
+      const catchData = Array.isArray(totalCatches) ? totalCatches : [];
+      const labels = catchData.map((_, index) => `第 ${index + 1} 年`);
+      totalCatchChart.data.labels = labels;
+      totalCatchChart.data.datasets[0].data = catchData;
+      // Check if the data is effectively empty and provide a title to reflect that,
+      // or update with the data-driven title if data exists.
+      const chartTitle = catchData.length > 0 ? '每年總捕撈量' : '尚無捕撈紀錄';
+      totalCatchChart.options.plugins.title.text = chartTitle;
+
+      totalCatchChart.update(); // Refresh the chart to show the new data.
+      console.log("[Teacher Chart] Total catch chart updated with labels:", labels, "and data:", catchData);
+  } 
+  })();   
   </script>
 
 </body>

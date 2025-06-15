@@ -20,6 +20,7 @@ module.exports = function(nsp) {
       showTotalCatchLimit: false, // 顯示是否總量管制
       totalCatchLimit: 100,       // 總漁獲管制
       enablePersonalCatchLimit: false, // 是否啟用個人上限
+      totalCatchesPerTurn: [],
       personalCatchLimitValue: 50    // 個人捕撈上限
     };
   }
@@ -62,7 +63,9 @@ module.exports = function(nsp) {
       teacherSocket.emit('updateStudentList', {
         students: uniqueStudents,
         fishPool, // Send the *live* fish pool
-        turn
+        turn,
+        totalCatchesPerTurn: gameConfig.totalCatchesPerTurn // Send to teacher
+
       });
     }
   }
@@ -74,7 +77,9 @@ module.exports = function(nsp) {
           config: gameConfig, // Send current config including toggles
           // Fish pool is sent live via sendStudentList to teacher,
           // and potentially via turnStarted/turnEnded to students if enabled
-          fishPool: gameConfig.showFishChart ? fishPool : undefined
+          fishPool: gameConfig.showFishChart ? fishPool : undefined,
+          totalCatchesPerTurn: gameConfig.totalCatchesPerTurn // Send to teacher at turn start
+
       });
   }
 
@@ -135,6 +140,13 @@ module.exports = function(nsp) {
 
 
   function endTurn() {
+    // Calculate total catch for this turn
+    const totalCatchThisTurn = Object.values(students).reduce((sum, s) => sum + (s.catchThisTurn || 0), 0);
+    if (!Array.isArray(gameConfig.totalCatchesPerTurn)) {
+      gameConfig.totalCatchesPerTurn = []; // Safely initialize the array
+    }
+    gameConfig.totalCatchesPerTurn.push(totalCatchThisTurn);
+
     // Results were processed incrementally via 'submitCatch'
     const finalTurnStats = collectTurnResults(); // Get the stats as they ended up
 
@@ -153,7 +165,8 @@ module.exports = function(nsp) {
       turn,
       fishPool: gameConfig.showFishChart ? fishPool : undefined, // Send final pool if visible
       stats: gameConfig.showLastTurnStats ? finalTurnStats : undefined, // Send collected stats if visible
-      showFishChart: gameConfig.showFishChart,
+      showFishChart: gameConfig.showFishChart, // Ensure correct flag
+      totalCatchesPerTurn: gameConfig.totalCatchesPerTurn, // Send updated array
       showLastTurnStats: gameConfig.showLastTurnStats
     });
 
@@ -228,7 +241,9 @@ module.exports = function(nsp) {
         if (newConfig.personalCatchLimitValue !== undefined) { // New
             gameConfig.personalCatchLimitValue = parseInt(newConfig.personalCatchLimitValue, 10) || gameConfig.personalCatchLimitValue;
         }
-
+        // Reset total catches when settings are changed (new game effectively)
+        gameConfig.totalCatchesPerTurn = [];
+        
         teacherSocket.emit('config', gameConfig); // Confirm config back to teacher
         broadcastGameState(); // Send update to students (for their UI toggles)
         sendStudentList(); // Update teacher view (e.g., if fishPool changed)
@@ -380,14 +395,21 @@ module.exports = function(nsp) {
             // The error message should still use student.banCount as it reflects the sentence including the current turn
             socket.emit('catchError', { message: `您本回合被禁漁，無法捕魚。剩餘禁漁 ${student.banCount} 回合。` });
         } else if (turnCatchRemaining > 0 && fishPool > 0) {
+            let effectiveTurnCatchRemaining = Infinity; // Default to no limit if total limit is not enabled
+            if (gameConfig.showTotalCatchLimit) { // Check if total catch limit is enabled
+                effectiveTurnCatchRemaining = turnCatchRemaining;
+            }
+
             let maxAllowedByPersonalLimit = Infinity;
             if (gameConfig.enablePersonalCatchLimit) {
                 maxAllowedByPersonalLimit = gameConfig.personalCatchLimitValue;
             }
-            actualCatch = Math.min(requested, fishPool, turnCatchRemaining, maxAllowedByPersonalLimit);
+            actualCatch = Math.min(requested, fishPool, effectiveTurnCatchRemaining, maxAllowedByPersonalLimit);
 
             fishPool -= actualCatch;
-            turnCatchRemaining -= actualCatch;
+            if (gameConfig.showTotalCatchLimit) { // Only decrement if the limit is active
+                turnCatchRemaining -= actualCatch;
+            }
         } else {
             actualCatch = 0;
         }
@@ -417,9 +439,17 @@ module.exports = function(nsp) {
         // Check for game end condition immediately after catch
         if (fishPool <= 0) {
             console.log("[Commons Logic] Fish pool depleted mid-turn. Ending game.");
+            // Ensure the final turn's catch is recorded before ending
+            const finalCatchThisTurn = Object.values(students).reduce((sum, s) => sum + (s.catchThisTurn || 0), 0);
+            if (!Array.isArray(gameConfig.totalCatchesPerTurn)) {
+                gameConfig.totalCatchesPerTurn = [];
+            }
+            // Add this potentially partial turn's catch data
+            gameConfig.totalCatchesPerTurn.push(finalCatchThisTurn);
             nsp.emit('gameEnded', {
                 finalStats: Object.values(students).map(getStudentPublicData).filter(s => s !== null),
-                fishPool: 0
+                fishPool: 0,
+                totalCatchesPerTurn: gameConfig.totalCatchesPerTurn // Send the final array
             });
             turn = 0; // Reset turn
         }
