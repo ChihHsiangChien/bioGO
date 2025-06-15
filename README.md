@@ -6,7 +6,7 @@
 ## ✨ 功能特色 (Features)
 
 *   **角色區分:** 明確區分老師和學生兩種連線角色。
-*   **即時通訊:** 使用 Socket.IO 實現老師和學生之間的低延遲雙向通訊。
+*   **即時通訊:** 使用 Socket.IO 實現老師和學生之間的低延遲雙向通訊，用於遊戲狀態同步和操作。
 *   **狀態同步:**
     *   老師可以即時看到目前連線的學生列表。
     *   學生加入時，如果已有活動正在進行，會自動收到通知加入活動。
@@ -14,6 +14,10 @@
     *   老師可以啟動 (Launch) 特定活動。
     *   老師可以結束 (End) 目前正在進行的活動。
     *   所有學生會即時收到活動開始與結束的通知。
+*   **遊戲參數設定:**
+    *   老師可以設定初始魚群數量、魚群增長率、最低生活所需魚數、魚價、個人捕撈上限、總量管制上限。
+    *   老師可以設定公共投資項目的投資報酬率。
+    *   老師可以啟用或停用學生端的特定功能，如：顯示他人捕魚狀態、顯示魚群變化图、啟用總量管制、啟用個人捕撈上限、啟用公共投資。
 *   **動態活動插件:**
     *   活動邏輯（伺服器端）封裝在 `activities` 目錄下的獨立子目錄中（例如 `activities/quiz/logic.js`）。
     *   伺服器啟動時會自動掃描 `activities` 目錄，載入所有有效的活動插件。
@@ -25,6 +29,11 @@
     *   提供 API 生成 QR Code（方便學生掃描加入）。
     *   提供 API 列出所有可用的活動。
     *   提供 API 列出指定活動可用的資料集 (Sets)。
+*   **遊戲互動:**
+    *   學生可以提交每年的捕魚數量。
+    *   學生可以進行公共投資（魚池維護、魚苗放養）以影響遊戲環境。
+    *   老師可以對特定學生設定禁漁回合。
+*   **視覺化圖表:** 老師端可以查看魚群數量隨時間變化的折線圖，以及每年學生總捕撈量的長條圖。
 
 ## 🛠️ 技術棧 (Technology Stack)
 
@@ -34,6 +43,7 @@
 *   **輔助工具:**
     *   `fs`: 讀取檔案系統 (用於動態載入活動)
     *   `path`: 處理檔案路徑
+    *   `chart.js`: 用於在客戶端繪製圖表
     *   `./utils/qrcode-generator`: 自訂的 QR Code 生成工具
 
 ## 🏗️ 架構概覽 (Architecture Overview)
@@ -96,13 +106,25 @@
 *   `clearAllStudents` (From teacher): 老師請求清除所有學生連線及所有活動命名空間連線，並強制其重新登入。`()`
 
 ### 活動命名空間 (`/<activity_name>`)
-
-*   **注意:** 這些事件的具體名稱和行為定義在各個活動的 `activities/<activity_name>/logic.js` 檔案中。以下是一些可能的 *範例*：
-    *   `getQuestion` (From student/teacher): 請求下一題。
-    *   `newQuestion` (To clients in activity): 伺服器發送新題目。
-    *   `submitAnswer` (From student): 學生提交答案。
-    *   `showResults` (To clients in activity): 伺服器公布結果。
-    *   `updateScore` (To specific student/teacher): 更新分數。
+*   **注意:** 以下事件主要針對 `commons` 活動。
+*   **伺服器 -> 客戶端 (Server Emits):**
+    *   `config` (To teacher): 發送當前遊戲設定。`(gameConfig: object)`
+    *   `updateStudentList` (To teacher): 更新學生列表及狀態。`(data: { students: Student[], fishPool: number, turn: number, totalCatchesPerTurn: number[], investmentSummary: object })`
+    *   `gameStarted` (To all in namespace): 通知遊戲開始。`(data: { config: object, fishPool: number })`
+    *   `turnStarted` (To all in namespace): 通知新回合開始。`(data: { turn: number, config: object, fishPool: number, investmentSummary: object })`
+    *   `turnEnded` (To all in namespace): 通知回合結束。`(data: { turn: number, fishPool: number, stats: StudentTurnStats[], showFishChart: boolean, totalCatchesPerTurn: number[], showLastTurnStats: boolean })`
+    *   `gameEnded` (To all in namespace): 通知遊戲結束。`(data: { reason?: string, finalStats: StudentFinalStats[], fishPool: number, totalCatchesPerTurn: number[] })`
+    *   `studentStateUpdate` (To specific student): 更新特定學生的狀態。`(state: { money: number, totalCatch: number, submitted: boolean, requestedCatch: number, banCount: number })`
+    *   `catchProcessed` (To specific student): 捕魚請求處理完成後的回饋。`(result: { requested: number, catchAmount: number, moneyEarned: number, totalMoney: number, totalCatch: number, currentFishPool: number })`
+    *   `catchError` (To specific student): 捕魚請求錯誤。`(error: { message: string })`
+    *   `investmentProcessed` (To specific student): 投資請求處理完成後的回饋。`(data: { success: boolean, message: string, newMoney: number, type: string })`
+    *   `turnUpdate` (To all students): 遊戲設定或狀態更新時廣播。`(data: { turn: number, config: object, fishPool?: number, fishHistory?: number[] })`
+*   **客戶端 -> 伺服器 (Client Emits):**
+    *   `setConfig` (From teacher): 老師更新遊戲設定。`(newConfig: object)`
+    *   `setBan` (From teacher): 老師設定學生禁漁。`(data: { studentId: string, banCount: number })`
+    *   `submitCatch` (From student): 學生提交捕魚數量。`(requestedAmount: number)`
+    *   `investMaintenance` (From student): 學生投資魚池維護。`(amount: number)`
+    *   `investStocking` (From student): 學生投資魚苗放養。`(amount: number)`
 
 ## 📁 目錄結構 (Directory Structure)
 

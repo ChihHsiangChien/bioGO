@@ -160,9 +160,17 @@
       <div class="input-group"> <label for="personalCatchLimitValue">個人捕撈上限</label> <input type="number" id="personalCatchLimitValue" value="50" min="0" /> </div>
       <div class="input-group"> <label>啟用個人捕撈上限</label> <button id="toggle-personal-limit-btn-config" class="toggle-btn">OFF</button> </div>
       <div class="input-group"> <label for="totalCatchLimit">總量管制 (本年最高捕魚總量)</label> <input type="number" id="totalCatchLimit" value="100" min="0" /> </div>
-      <div class="input-group"> <label>啟用總量管制</label> <button id="toggle-total-limit-btn-config" class="toggle-btn">OFF</button> </div>
+      <div class="input-group"> <label>啟用總量管制</label> <button id="toggle-total-limit-btn-config" class="toggle-btn">OFF</button> </div>      
       <div class="input-group"> <label>切換學生端是否可見其他人捕魚狀態</label> <button id="toggle-matrix-btn-config" class="toggle-btn">OFF</button> </div>
       <div class="input-group"> <label>切換學生端是否可見魚群變化圖</label> <button id="toggle-fish-chart-btn-config" class="toggle-btn">OFF</button> </div>
+
+
+      <div class="input-group"> <label>啟用學生端公共投資</label> <button id="toggle-public-investment-btn-config" class="toggle-btn">OFF</button> </div>
+      <div class="input-group"> <label for="maintenanceInvestmentUnit">魚池維護單位投資 ($)</label> <input type="number" id="maintenanceInvestmentUnit" value="100" min="1" /> </div>
+      <div class="input-group"> <label for="maintenanceGrowthBonus">每單位維護提升增長率 (%)</label> <input type="number" id="maintenanceGrowthBonus" value="1" min="0" step="0.1" /> </div>
+      <div class="input-group"> <label for="stockingInvestmentUnit">魚苗放養單位投資 ($)</label> <input type="number" id="stockingInvestmentUnit" value="1" min="1" /> </div>
+      <div class="input-group"> <label for="stockingFishBonus">每單位放養增加魚隻</label> <input type="number" id="stockingFishBonus" value="1" min="0" /> </div>
+
     </div>    
     <div class="action-buttons"> 
       <button id="update-config-btn">更新即時設定</button>      
@@ -194,6 +202,20 @@
           </tr>
         </thead>
         <tbody id="students-table"></tbody> <!-- ID is here -->
+      </table>
+    </div>
+
+    <div id="investments-summary-section" style="margin-top: 20px;">
+      <h3>本年投資總覽</h3>
+      <p>魚池維護總投資: $<span id="total-maintenance-investment">0</span> (預計提升增長率: <span id="maintenance-effect-display">0</span>%)</p>
+      <p>魚苗放養總投資: $<span id="total-stocking-investment">0</span> (預計增加魚隻: <span id="stocking-effect-display">0</span>)</p>
+      <h4>各村民投資詳情</h4>
+      <table id="student-investments-table">
+          <thead>
+              <tr><th>姓名</th><th>投資魚池維護 ($)</th><th>投資魚苗放養 ($)</th></tr>
+          </thead>
+          <tbody id="student-investments-tbody">
+          </tbody>
       </table>
     </div>
 
@@ -229,6 +251,11 @@
       const toggleMatrixBtnConfig = document.getElementById('toggle-matrix-btn-config');
       const toggleFishChartBtnConfig = document.getElementById('toggle-fish-chart-btn-config');
       const togglePersonalLimitBtnConfig = document.getElementById('toggle-personal-limit-btn-config'); // New
+      const maintenanceInvestmentUnit = document.getElementById('maintenanceInvestmentUnit'); // New
+      const maintenanceGrowthBonus = document.getElementById('maintenanceGrowthBonus'); // New
+      const stockingInvestmentUnit = document.getElementById('stockingInvestmentUnit'); // New
+      const stockingFishBonus = document.getElementById('stockingFishBonus'); // New
+      const togglePublicInvestmentBtnConfig = document.getElementById('toggle-public-investment-btn-config'); // New
       const toggleTotalLimitBtnConfig = document.getElementById('toggle-total-limit-btn-config');
       // No separate game-section toggles: reuse config-section controls
       const updateConfigBtn = document.getElementById('update-config-btn'); // New button
@@ -239,6 +266,11 @@
       const fishChartCanvas = document.getElementById('fishChart');
       // State
       const totalCatchChartCanvas = document.getElementById('totalCatchChart'); // Get new canvas
+      const totalMaintenanceInvestmentEl = document.getElementById('total-maintenance-investment');
+      const maintenanceEffectDisplayEl = document.getElementById('maintenance-effect-display');
+      const totalStockingInvestmentEl = document.getElementById('total-stocking-investment');
+      const stockingEffectDisplayEl = document.getElementById('stocking-effect-display');
+      const studentInvestmentsTbody = document.getElementById('student-investments-tbody');
       let gameConfigState = {};
       let showMatrixForStudents = false;
       let showFishChartForStudents = false;
@@ -254,9 +286,43 @@
         showMatrixForStudents = matrixVisible; showFishChartForStudents = chartVisible;
         toggleMatrixBtnConfig.classList.toggle('active', showMatrixForStudents);
         toggleMatrixBtnConfig.textContent = showMatrixForStudents ? 'ON' : 'OFF';
-
         toggleFishChartBtnConfig.classList.toggle('active', showFishChartForStudents);
         toggleFishChartBtnConfig.textContent = showFishChartForStudents ? 'ON' : 'OFF';
+      }
+      function getSanitizedConfigValue(value, defaultValue, isFloat = false) {
+        const num = isFloat ? parseFloat(value) : parseInt(value, 10);
+        if (isNaN(num) || (isFloat ? num < 0 : num <= 0 && defaultValue > 0) ) { // Ensure positive for units, non-negative for bonuses
+            return defaultValue;
+        }
+        return num;
+      }
+
+      function updateInvestmentSummary(summary) {
+        if (!summary) return;
+        totalMaintenanceInvestmentEl.textContent = summary.totalMaintenanceInvestmentThisTurn || 0;
+        // Example effect calculation (mirror or get from backend if more complex)
+        maintenanceEffectDisplayEl.textContent = ((summary.totalMaintenanceInvestmentThisTurn || 0) / 100 * 1).toFixed(2); // e.g., $100 -> 1%
+        totalStockingInvestmentEl.textContent = summary.totalStockingInvestmentThisTurn || 0;
+        // Use teacher-defined rates for display projection
+        const maintUnit = getSanitizedConfigValue(maintenanceInvestmentUnit.value, gameConfigState.maintenanceInvestmentUnit || 100);
+        const maintBonus = getSanitizedConfigValue(maintenanceGrowthBonus.value, gameConfigState.maintenanceGrowthBonus || 1, true) / 100; // Convert % to decimal
+        const stockUnit = getSanitizedConfigValue(stockingInvestmentUnit.value, gameConfigState.stockingInvestmentUnit || 1);
+        const stockBonus = getSanitizedConfigValue(stockingFishBonus.value, gameConfigState.stockingFishBonus || 1);
+        maintenanceEffectDisplayEl.textContent = (((summary.totalMaintenanceInvestmentThisTurn || 0) / maintUnit) * maintBonus * 100).toFixed(2);
+        stockingEffectDisplayEl.textContent = Math.floor(((summary.totalStockingInvestmentThisTurn || 0) / stockUnit) * stockBonus);
+        if (summary.studentInvestments) {
+            studentInvestmentsTbody.innerHTML = ''; // Clear only if there are new investments to show
+            summary.studentInvestments.forEach(s => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${s.name}</td>
+                    <td>${s.investmentMaintenanceThisTurn || 0}</td>
+                    <td>${s.investmentStockingThisTurn || 0}</td>`;
+                studentInvestmentsTbody.appendChild(tr);
+            });
+        } else {
+        studentInvestmentsTbody.innerHTML = '<tr><td colspan="3">尚無學生投資</td></tr>';
+        }
       }
 
       function updateStudentTable(studentsFromServer = []) {
@@ -416,6 +482,14 @@ function initializeTotalCatchChart(catchData) {
         togglePersonalLimitBtnConfig.classList.toggle('active', !!cfg.enablePersonalCatchLimit); // New
         togglePersonalLimitBtnConfig.textContent = cfg.enablePersonalCatchLimit ? 'ON' : 'OFF'; // New
 
+        togglePublicInvestmentBtnConfig.classList.toggle('active', !!cfg.enablePublicInvestment); // New
+        maintenanceInvestmentUnit.value = cfg.maintenanceInvestmentUnit ?? 100; // New
+        maintenanceGrowthBonus.value = (cfg.maintenanceGrowthBonus ?? 0.01) * 100; // New, convert to %
+        stockingInvestmentUnit.value = cfg.stockingInvestmentUnit ?? 1;
+        stockingFishBonus.value = cfg.stockingFishBonus ?? 1; // New
+
+        togglePublicInvestmentBtnConfig.textContent = cfg.enablePublicInvestment ? 'ON' : 'OFF'; // New
+
         updateToggleButtons(!!cfg.showLastTurnStats, !!cfg.showFishChart);
       });
       socket.on('updateStudentList', data => {
@@ -434,6 +508,9 @@ function initializeTotalCatchChart(catchData) {
           if (fishChart) { updateChart(currentChartTurnLabel, data.fishPool); }
           // If chart doesn't exist and it's turn 0 (or pre-game), initialize
           else if (data.turn === 0 || !fishChart) { initializeChart(data.fishPool); }
+          if (data.investmentSummary) {
+            updateInvestmentSummary(data.investmentSummary);
+          }
 
           updateTotalCatchChart(data.totalCatchesPerTurn || []);
         }
@@ -449,6 +526,8 @@ function initializeTotalCatchChart(catchData) {
         }
         // Ensure total catch chart section is visible when game starts
         document.getElementById('totalCatchChartSection').style.display = 'block';
+        updateInvestmentSummary({}); // Reset investment summary display
+
         initializeChart(data.fishPool ?? 0); updateStudentTable([]);
         // Sync initialFish display
         if (initialFish && data.fishPool !== undefined) {
@@ -474,10 +553,13 @@ function initializeTotalCatchChart(catchData) {
           // Update toggle buttons based on the received config flags
           updateToggleButtons(!!data.config.showLastTurnStats, !!data.config.showFishChart);
         }
+        if (data.investmentSummary) { // Update investment summary at start of turn
+            updateInvestmentSummary(data.investmentSummary);
+        }
       });
       socket.on('gameEnded', data => {
         console.log('[Commons Teacher] Game ended:', data);
-        alert(`Game Over! Final Fish Pool: ${data.fishPool}`);
+        alert(`遊戲結束!Pool: ${data.fishPool}`);
         updateStudentTable(data.finalStats); // 這會更新學生表格以顯示最終數據
         if (data.totalCatchesPerTurn) {
           updateTotalCatchChart(data.totalCatchesPerTurn); // 更新總捕撈圖表
@@ -530,6 +612,15 @@ function initializeTotalCatchChart(catchData) {
         socket.emit('setConfig', { enablePersonalCatchLimit: enabled, personalCatchLimitValue: gameConfigState.personalCatchLimitValue });
       });
 
+      togglePublicInvestmentBtnConfig.addEventListener('click', () => { // New listener
+        const enabled = !gameConfigState.enablePublicInvestment;
+        gameConfigState.enablePublicInvestment = enabled;
+        togglePublicInvestmentBtnConfig.classList.toggle('active', enabled);
+        togglePublicInvestmentBtnConfig.textContent = enabled ? 'ON' : 'OFF';
+        console.log(`[Commons Teacher] Emitting setConfig: enablePublicInvestment=${enabled}`);
+        socket.emit('setConfig', { enablePublicInvestment: enabled });
+      });
+
 
       // New "Update Config" Button Listener
       updateConfigBtn.addEventListener('click', () => {
@@ -541,8 +632,13 @@ function initializeTotalCatchChart(catchData) {
           minFishPerFamily: parseInt(minFishPerFamily.value, 10),
           fishPrice: parseInt(fishPrice.value, 10),
           totalCatchLimit: parseInt(totalCatchLimit.value, 10),
-          enablePersonalCatchLimit: gameConfigState.enablePersonalCatchLimit, // Add current state of toggle
-          personalCatchLimitValue: parseInt(personalCatchLimitValue.value, 10) // Add current value
+          enablePersonalCatchLimit: gameConfigState.enablePersonalCatchLimit, 
+          enablePublicInvestment: gameConfigState.enablePublicInvestment, // Add current state of toggle
+          personalCatchLimitValue: parseInt(personalCatchLimitValue.value, 10), // Add current value
+          maintenanceInvestmentUnit: parseInt(maintenanceInvestmentUnit.value, 10), // New
+          maintenanceGrowthBonus: parseFloat(maintenanceGrowthBonus.value) / 100, // New, convert to decimal
+          stockingInvestmentUnit: parseInt(stockingInvestmentUnit.value, 10), // New
+          stockingFishBonus: parseInt(stockingFishBonus.value, 10) // New
         };
         // Filter out NaN or undefined values before sending, or rely on backend to use defaults
         // For simplicity, we send them, and backend logic should handle invalid values gracefully.
@@ -561,6 +657,11 @@ function initializeTotalCatchChart(catchData) {
           totalCatchLimit: parseInt(totalCatchLimit.value, 10),
           enablePersonalCatchLimit: gameConfigState.enablePersonalCatchLimit, // Add from state
           personalCatchLimitValue: parseInt(personalCatchLimitValue.value, 10), // Add from input
+          maintenanceInvestmentUnit: parseInt(maintenanceInvestmentUnit.value, 10), // New
+          maintenanceGrowthBonus: parseFloat(maintenanceGrowthBonus.value) / 100, // New, convert to decimal
+          stockingInvestmentUnit: parseInt(stockingInvestmentUnit.value, 10), // New
+          stockingFishBonus: parseInt(stockingFishBonus.value, 10), // New
+          enablePublicInvestment: gameConfigState.enablePublicInvestment, // Add from state
           showLastTurnStats: showMatrixForStudents, // Keep existing
           showFishChart: showFishChartForStudents
         };

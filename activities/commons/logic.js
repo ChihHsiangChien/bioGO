@@ -20,7 +20,12 @@ module.exports = function(nsp) {
       showTotalCatchLimit: false, // 顯示是否總量管制
       totalCatchLimit: 100,       // 總漁獲管制
       enablePersonalCatchLimit: false, // 是否啟用個人上限
-      totalCatchesPerTurn: [],
+      totalCatchesPerTurn: [], // Array to store total catch for each turn
+      enablePublicInvestment: false, 
+      maintenanceInvestmentUnit: 100, // Cost per unit of maintenance investment
+      maintenanceGrowthBonus: 0.01,  // Growth rate bonus per unit (e.g., 0.01 for 1%)
+      stockingInvestmentUnit: 1,    // Cost per unit of stocking investment
+      stockingFishBonus: 1,          // Fish added per unit of stocking
       personalCatchLimitValue: 50    // 個人捕撈上限
     };
   }
@@ -30,6 +35,8 @@ module.exports = function(nsp) {
   let turn = 0;
   let turnCatchRemaining = gameConfig.totalCatchLimit; // Reset each turn
   const students = {}; // Store student data by socket.id
+  let totalMaintenanceInvestmentThisTurn = 0;
+  let totalStockingInvestmentThisTurn = 0;  
   // submissionOrder is no longer needed for FCFS distribution logic
 
   function getStudentPublicData(student) {
@@ -42,7 +49,10 @@ module.exports = function(nsp) {
       totalCatch: student.totalCatch || 0,
       submitted: student.submitted || false,
       requestedCatch: student.requestedCatch || 0,
-      banCount: student.banCount || 0
+      banCount: student.banCount || 0,
+      investmentMaintenanceThisTurn: student.investmentMaintenanceThisTurn || 0,
+      investmentStockingThisTurn: student.investmentStockingThisTurn || 0
+
     };
   }
 
@@ -64,8 +74,13 @@ module.exports = function(nsp) {
         students: uniqueStudents,
         fishPool, // Send the *live* fish pool
         turn,
-        totalCatchesPerTurn: gameConfig.totalCatchesPerTurn // Send to teacher
-
+        totalCatchesPerTurn: gameConfig.totalCatchesPerTurn, // Send to teacher
+        totalCatchesPerTurn: gameConfig.totalCatchesPerTurn, // Send to teacher
+        investmentSummary: {
+            totalMaintenanceInvestmentThisTurn,
+            totalStockingInvestmentThisTurn,
+            studentInvestments: uniqueStudents.map(s => ({ name: s.name, investmentMaintenanceThisTurn: s.investmentMaintenanceThisTurn, investmentStockingThisTurn: s.investmentStockingThisTurn }))
+        }
       });
     }
   }
@@ -78,8 +93,11 @@ module.exports = function(nsp) {
           // Fish pool is sent live via sendStudentList to teacher,
           // and potentially via turnStarted/turnEnded to students if enabled
           fishPool: gameConfig.showFishChart ? fishPool : undefined,
-          totalCatchesPerTurn: gameConfig.totalCatchesPerTurn // Send to teacher at turn start
-
+          totalCatchesPerTurn: gameConfig.totalCatchesPerTurn, // Send to teacher at turn start
+          investmentSummary: { // Send to teacher
+              totalMaintenanceInvestmentThisTurn,
+              totalStockingInvestmentThisTurn
+          }
       });
   }
 
@@ -87,6 +105,9 @@ module.exports = function(nsp) {
   function startTurn() {
     // Initialize turn catch quota
     turnCatchRemaining = gameConfig.totalCatchLimit;
+    // Reset investments for the new turn
+    totalMaintenanceInvestmentThisTurn = 0;
+    totalStockingInvestmentThisTurn = 0;    
     // Reset turn-specific student state
     Object.values(students).forEach(s => {
       if (s) {
@@ -95,18 +116,39 @@ module.exports = function(nsp) {
         s.submitted = false;
         // Determine and set if the student is effectively banned for THIS turn
         s.isEffectivelyBannedThisTurn = (s.banCount > 0);
+        s.investmentMaintenanceThisTurn = 0;
+        s.investmentStockingThisTurn = 0;        
       }
     });
 
-    // Apply fish growth *before* the turn starts
-    if (turn > 0) {
-        fishPool = Math.max(0, Math.round(fishPool * (1 + gameConfig.growthRate)));
+    // 1. Calculate effective growth rate based on maintenance investment
+    let effectiveGrowthRate = gameConfig.growthRate;
+    if (gameConfig.maintenanceInvestmentUnit > 0 && totalMaintenanceInvestmentThisTurn > 0) {
+        const maintenanceUnitsInvested = totalMaintenanceInvestmentThisTurn / gameConfig.maintenanceInvestmentUnit;
+        const maintenanceBonus = maintenanceUnitsInvested * gameConfig.maintenanceGrowthBonus;
+        // Optional: Add a cap to the bonus growth from maintenance
+        // const cappedMaintenanceBonus = Math.min(0.10, maintenanceBonus); // e.g., max 10% bonus
+        effectiveGrowthRate += maintenanceBonus; // Or cappedMaintenanceBonus
     }
+
+    // 2. Apply fish growth *before* the turn starts, using effective rate
+    if (turn > 0) {
+        fishPool = Math.max(0, Math.round(fishPool * (1 + effectiveGrowthRate)));
+    }
+    // 3. Apply fish stocking based on investment
+    if (gameConfig.stockingInvestmentUnit > 0 && totalStockingInvestmentThisTurn > 0) {
+        const stockingUnitsInvested = totalStockingInvestmentThisTurn / gameConfig.stockingInvestmentUnit;
+        const stockedFish = Math.floor(stockingUnitsInvested * gameConfig.stockingFishBonus);
+        fishPool += stockedFish;
+    }
+
 
     nsp.emit('turnStarted', {
       turn,
       config: gameConfig,
-      fishPool: gameConfig.showFishChart ? fishPool : undefined // Send initial pool if visible
+      fishPool: gameConfig.showFishChart ? fishPool : undefined, // Send initial pool if visible
+      investmentSummary: { totalMaintenanceInvestmentThisTurn, totalStockingInvestmentThisTurn } // Send to teacher
+
     });
     // Send individual state update to each student, including banCount
     Object.values(students).forEach(s => {
@@ -241,8 +283,24 @@ module.exports = function(nsp) {
         if (newConfig.personalCatchLimitValue !== undefined) { // New
             gameConfig.personalCatchLimitValue = parseInt(newConfig.personalCatchLimitValue, 10) || gameConfig.personalCatchLimitValue;
         }
+        if (newConfig.enablePublicInvestment !== undefined) { // New
+            gameConfig.enablePublicInvestment = !!newConfig.enablePublicInvestment;
+        }
+        if (newConfig.maintenanceInvestmentUnit !== undefined) {
+            gameConfig.maintenanceInvestmentUnit = Math.max(1, parseInt(newConfig.maintenanceInvestmentUnit, 10) || gameConfig.maintenanceInvestmentUnit);
+        }
+        if (newConfig.maintenanceGrowthBonus !== undefined) {
+            gameConfig.maintenanceGrowthBonus = Math.max(0, parseFloat(newConfig.maintenanceGrowthBonus) || gameConfig.maintenanceGrowthBonus);
+        }
+        if (newConfig.stockingInvestmentUnit !== undefined) {
+            gameConfig.stockingInvestmentUnit = Math.max(1, parseInt(newConfig.stockingInvestmentUnit, 10) || gameConfig.stockingInvestmentUnit);
+        }
+        if (newConfig.stockingFishBonus !== undefined) {
+            gameConfig.stockingFishBonus = Math.max(0, parseInt(newConfig.stockingFishBonus, 10) || gameConfig.stockingFishBonus);
+        }
         // Reset total catches when settings are changed (new game effectively)
         gameConfig.totalCatchesPerTurn = [];
+        // Reset investments as well if config changes imply a new game state
         
         teacherSocket.emit('config', gameConfig); // Confirm config back to teacher
         broadcastGameState(); // Send update to students (for their UI toggles)
@@ -270,6 +328,8 @@ module.exports = function(nsp) {
             s.catchThisTurn = 0;
             s.requestedCatch = 0;
             s.submitted = false;
+            s.investmentMaintenanceThisTurn = 0;
+            s.investmentStockingThisTurn = 0;            
           }
         });
         // Send gameStarted with initial state potentially visible to students
@@ -327,7 +387,9 @@ module.exports = function(nsp) {
                 catchThisTurn: 0,
                 requestedCatch: 0,
                 submitted: false,
-                banCount: 0
+                banCount: 0,
+                investmentMaintenanceThisTurn: 0,
+                investmentStockingThisTurn: 0
             };
             studentEntry = students[socket.id];
         }
@@ -453,6 +515,43 @@ module.exports = function(nsp) {
             });
             turn = 0; // Reset turn
         }
+      });
+      socket.on('investMaintenance', amount => {
+        const student = students[socket.id];
+        if (!student || turn === 0 || !student.submitted || student.investmentMaintenanceThisTurn > 0) {
+            socket.emit('investmentProcessed', { success: false, message: '現在無法投資魚池維護。', newMoney: student ? student.money : 0, type: 'maintenance' });
+            return;
+        }
+        const cost = Math.max(0, parseInt(amount) || 0);
+        if (student.money < cost) {
+            socket.emit('investmentProcessed', { success: false, message: '財產不足，無法投資。', newMoney: student.money, type: 'maintenance' });
+            return;
+        }
+        student.money -= cost;
+        student.investmentMaintenanceThisTurn = (student.investmentMaintenanceThisTurn || 0) + cost;
+        totalMaintenanceInvestmentThisTurn += cost;
+        socket.emit('investmentProcessed', { success: true, message: `成功投資魚池維護 $${cost}。`, newMoney: student.money, type: 'maintenance' });
+        sendStudentList(); // Update teacher
+        broadcastGameState(); // Update investment summary for teacher
+      });
+
+      socket.on('investStocking', amount => {
+        const student = students[socket.id];
+        if (!gameConfig.enablePublicInvestment || !student || turn === 0 || !student.submitted || student.investmentStockingThisTurn > 0) {
+            socket.emit('investmentProcessed', { success: false, message: '現在無法投資魚苗放養。', newMoney: student ? student.money : 0, type: 'stocking' });
+            return;
+        }
+        const cost = Math.max(0, parseInt(amount) || 0);
+        if (student.money < cost) {
+            socket.emit('investmentProcessed', { success: false, message: '財產不足，無法投資。', newMoney: student.money, type: 'stocking' });
+            return;
+        }
+        student.money -= cost;
+        student.investmentStockingThisTurn = (student.investmentStockingThisTurn || 0) + cost;
+        totalStockingInvestmentThisTurn += cost;
+        socket.emit('investmentProcessed', { success: true, message: `成功投資魚苗放養 $${cost}。`, newMoney: student.money, type: 'stocking' });
+        sendStudentList(); // Update teacher
+        broadcastGameState(); // Update investment summary for teacher
       });
 
       socket.on('disconnect', () => {

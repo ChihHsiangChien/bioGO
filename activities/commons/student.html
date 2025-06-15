@@ -61,6 +61,22 @@
               <p id="submission-status" class="status-message" style="display: none;"></p>
           </div>
 
+          <div id="investment-section" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+              <h4>公共投資 (投資後本年無法反悔)</h4>
+              <div>
+                  <label for="maintenanceAmount">投資魚池維護 ($):</label>
+                  <input type="number" id="maintenanceAmount" min="0" value="0" />
+                  <button id="submitMaintenanceBtn">投資維護</button>
+              </div>
+              <div style="margin-top: 10px;">
+                  <label for="stockingAmount">投資魚苗放養 ($):</label>
+                  <input type="number" id="stockingAmount" min="0" value="0" />
+                  <button id="submitStockingBtn">投資魚苗</button>
+              </div>
+              <p id="investment-status" class="status-message" style="display: none;"></p>
+          </div>
+
+
           <div id="last-turn-stats" style="display: none;">
               <h3>去年的結果</h3>
               <p>每個家庭填飽肚子要幾條魚：<span id="minFishRequired"></span></p>
@@ -123,6 +139,12 @@
       const catchInput = document.getElementById('catchAmount');
       const submitCatchBtn = document.getElementById('submitCatchBtn');
       const submissionStatusEl = document.getElementById('submission-status');
+      const investmentSection = document.getElementById('investment-section'); // New
+      const maintenanceAmountInput = document.getElementById('maintenanceAmount'); // New
+      const submitMaintenanceBtn = document.getElementById('submitMaintenanceBtn'); // New
+      const stockingAmountInput = document.getElementById('stockingAmount'); // New
+      const submitStockingBtn = document.getElementById('submitStockingBtn'); // New
+      const investmentStatusEl = document.getElementById('investment-status'); // New      
       const banStatusEl = document.getElementById('ban-status'); 
       const lastTurnStatsDiv = document.getElementById('last-turn-stats');
       const minFishRequiredEl = document.getElementById('minFishRequired');
@@ -137,6 +159,8 @@
       let currentTotalCatch = 0;
       let currentTurnNumber = 0;
       let gameConfig = {};
+      let maintenanceInvestedThisTurn = false; // 新增：追蹤本回合是否已投資維護
+      let stockingInvestedThisTurn = false;   // 新增：追蹤本回合是否已投資魚苗
 
       // --- Chart ---
       let fishChart = null;
@@ -152,6 +176,28 @@
       }
       function hideStatusMessage() {
           submissionStatusEl.style.display = 'none';
+      }
+
+      function enableInvestmentUI(enable) {
+        // Also check gameConfig if public investment is enabled by teacher
+        const showInvestmentOverall = enable && gameConfig.enablePublicInvestment;
+        investmentSection.style.display = showInvestmentOverall ? 'block' : 'none';
+
+        // 只有當整體投資區塊可見且該項目本回合尚未投資時，才啟用輸入和按鈕
+        maintenanceAmountInput.disabled = !showInvestmentOverall || maintenanceInvestedThisTurn;
+        submitMaintenanceBtn.disabled = !showInvestmentOverall || maintenanceInvestedThisTurn;
+
+        stockingAmountInput.disabled = !showInvestmentOverall || stockingInvestedThisTurn;
+        submitStockingBtn.disabled = !showInvestmentOverall || stockingInvestedThisTurn;
+
+        if (showInvestmentOverall) {
+          // 如果按鈕因為已投資而被禁用，則不清除之前的成功/失敗訊息
+          if (!maintenanceInvestedThisTurn && !stockingInvestedThisTurn) {
+              hideStatusMessage(investmentStatusEl);
+          }
+        } else {
+          hideStatusMessage(investmentStatusEl);
+        }
       }
 
       // Controls visibility of sections based on teacher toggles
@@ -178,6 +224,11 @@
           } else {
               personalLimitInfo.style.display = 'none';
           }
+          // Show/hide investment section based on teacher config
+          // The enableInvestmentUI function will handle the actual display logic
+          // by checking gameConfig.enablePublicInvestment.
+          // We call it here to ensure the investment section's visibility is correctly set
+          enableInvestmentUI(submitCatchBtn.disabled); // Pass current state of submit button (true if submitted/banned)
       }
 
       // Initializes the chart object
@@ -255,6 +306,10 @@
         if (catchInput) catchInput.value = 0;
         if (catchInput) catchInput.disabled = false;
         if (submitCatchBtn) submitCatchBtn.disabled = false;
+        maintenanceInvestedThisTurn = false; // 重置維護投資狀態
+        stockingInvestedThisTurn = false;   // 重置魚苗投資狀態
+        if (maintenanceAmountInput) maintenanceAmountInput.value = 0; // 重置維護投資輸入框
+        if (stockingAmountInput) stockingAmountInput.value = 0;     // 重置魚苗投資輸入框
         // else console.error('[Student] resetTurnUI: submitCatchBtn not found!');
       }
 
@@ -341,6 +396,10 @@
             catchInput.disabled = true;
             submitCatchBtn.disabled = true;
             showStatusMessage('已提交此回合', 'info');
+            enableInvestmentUI(true); // Enable investment after submitting catch
+          } else {
+            // Not banned, not submitted, keep catch inputs enabled.
+            enableInvestmentUI(false); // Disable investment if catch not yet submitted
           } // If not banned and not submitted, inputs remain enabled from resetTurnUI
         }
       });
@@ -366,6 +425,14 @@
         }
         resetTurnUI(); // Enable inputs
         hideStatusMessage(); // Clear status message
+        hideStatusMessage(investmentStatusEl);    
+        enableInvestmentUI(false); // 初始時投資區塊通常是禁用的
+        if (maintenanceAmountInput) maintenanceAmountInput.value = 0; // 確保遊戲開始時重置
+        if (stockingAmountInput) stockingAmountInput.value = 0;     // 確保遊戲開始時重置
+        // Investment UI is typically enabled after catch submission,
+        // but ensure it's visible if game logic allows investment at turn start.
+        // For now, let's assume investment is post-catch.
+
         if (banStatusEl) banStatusEl.style.display = 'none'; // Hide ban status on reset
 
       });
@@ -404,6 +471,7 @@
           // Keep inputs disabled for the rest of the turn
           catchInput.disabled = true;
           submitCatchBtn.disabled = true;
+          enableInvestmentUI(true); // Enable investment options
       });
 
       // Handles errors during submission
@@ -413,6 +481,24 @@
         // Re-enable button/input cautiously
         if (catchInput) catchInput.disabled = false;
         if (submitCatchBtn) submitCatchBtn.disabled = false;
+        enableInvestmentUI(false); // Disable investment if catch failed
+      });
+
+      socket.on('investmentProcessed', (data) => {
+        console.log('[Commons Student] Investment processed:', data);
+        moneyEl.textContent = data.newMoney; // Update money after investment
+        showStatusMessage(data.message, data.success ? 'success' : 'warning', investmentStatusEl);
+
+        if (data.success) { // 關鍵：只在成功時才更新狀態和禁用按鈕
+            if (data.type === 'maintenance') {
+                maintenanceInvestedThisTurn = true;
+                submitMaintenanceBtn.disabled = true; // 明確禁用
+            }
+            if (data.type === 'stocking') {
+                stockingInvestedThisTurn = true;
+                submitStockingBtn.disabled = true; // 明確禁用
+            }
+        }
       });
 
       // Handles end-of-turn updates (primarily for shared stats table)
@@ -473,6 +559,28 @@
         submitCatchBtn.disabled = true;
         catchInput.disabled = true;
         showStatusMessage('Submitting your catch request...', 'info'); // Provide initial feedback
+      });
+      submitMaintenanceBtn.addEventListener('click', () => {
+        const amount = parseInt(maintenanceAmountInput.value, 10);
+        if (isNaN(amount) || amount < 0) {
+            showStatusMessage('請輸入有效的投資金額。', 'warning', investmentStatusEl);
+            return;
+        }
+        console.log(`[Commons Student] Investing in maintenance: $${amount}`);
+        socket.emit('investMaintenance', amount);
+        showStatusMessage('處理魚池維護投資中...', 'info', investmentStatusEl);
+        // submitMaintenanceBtn.disabled = true; // Let server response handle disabling
+      });      
+      submitStockingBtn.addEventListener('click', () => {
+        const amount = parseInt(stockingAmountInput.value, 10);
+        if (isNaN(amount) || amount < 0) {
+            showStatusMessage('請輸入有效的投資金額。', 'warning', investmentStatusEl);
+            return;
+        }
+        console.log(`[Commons Student] Investing in stocking: $${amount}`);
+        socket.emit('investStocking', amount);
+        showStatusMessage('處理魚苗放養投資中...', 'info', investmentStatusEl);
+        // submitStockingBtn.disabled = true; // Let server response handle disabling
       });
 
     })();
