@@ -6,5 +6,12 @@
   "showLastTurnStats": false,
   "showFishChart": false,
   "showTotalCatchLimit": false,
-  "totalCatchLimit": 100
+  "totalCatchLimit": 100,
+  "enablePersonalCatchLimit": false,
+  "personalCatchLimitValue": 50,
+  "enablePublicInvestment": false,
+  "maintenanceInvestmentUnit": 100,
+  "maintenanceGrowthBonus": 0.01,
+  "stockingInvestmentUnit": 1,
+  "stockingFishBonus": 1
 }

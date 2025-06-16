@@ -13,8 +13,8 @@ module.exports = function(nsp) {
     defaultConfig = {
       initialFish: 1000,
       growthRate: 0.2,
-      minFishPerFamily: 2,
       fishPrice: 10,
+      minFishPerFamily: 2,
       showLastTurnStats: false,    // Controls student visibility
       showFishChart: false,       // Controls student visibility
       showTotalCatchLimit: false, // 顯示是否總量管制
