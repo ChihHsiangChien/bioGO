@@ -1,5 +1,5 @@
 {
-  "initialFish": 100,
+  "initialFish": 1000,
   "growthRate": 0.2,
   "fishPrice": 10,
   "minFishPerFamily": 2,

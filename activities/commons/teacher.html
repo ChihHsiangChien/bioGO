@@ -149,29 +149,41 @@
     <!-- ... config inputs and toggles ... -->
     <h2>遊戲設定</h2>
     <div class="control-panel">
-      <div class="input-group"> <label for="initialFish">池塘魚數量</label> <input type="number"
-          id="initialFish" value="100" min="0" /> </div>
-      <div class="input-group"> <label for="growthRate">魚群增加率 (%)</label> <input type="number" id="growthRate"
-          value="20" min="0" step="1" /> </div>
-      <div class="input-group"> <label for="minFishPerFamily">維持家庭最少魚數</label> <input type="number"
-          id="minFishPerFamily" value="2" min="0" /> </div>
-      <div class="input-group"> <label for="fishPrice">魚價 ($)</label> <input type="number" id="fishPrice"
-          value="10" min="0" /> </div>
-      <div class="input-group"> <label for="personalCatchLimitValue">個人捕撈上限</label> <input type="number" id="personalCatchLimitValue" value="50" min="0" /> </div>
-      <div class="input-group"> <label>啟用個人捕撈上限</label> <button id="toggle-personal-limit-btn-config" class="toggle-btn">OFF</button> </div>
-      <div class="input-group"> <label for="totalCatchLimit">總量管制 (本年最高捕魚總量)</label> <input type="number" id="totalCatchLimit" value="100" min="0" /> </div>
-      <div class="input-group"> <label>啟用總量管制</label> <button id="toggle-total-limit-btn-config" class="toggle-btn">OFF</button> </div>      
-      <div class="input-group"> <label>切換學生端是否可見其他人捕魚狀態</label> <button id="toggle-matrix-btn-config" class="toggle-btn">OFF</button> </div>
-      <div class="input-group"> <label>切換學生端是否可見魚群變化圖</label> <button id="toggle-fish-chart-btn-config" class="toggle-btn">OFF</button> </div>
+      <fieldset>
+        <legend>基本遊戲設定</legend>
+        <div class="input-group"> <label for="initialFish">池塘魚數量</label> <input type="number"
+            id="initialFish" value="1000" min="0" /> </div>
+        <div class="input-group"> <label for="growthRate">魚群增加率 (%)</label> <input type="number" id="growthRate"
+            value="20" min="0" step="1" /> </div>
+        <div class="input-group"> <label for="minFishPerFamily">維持家庭最少魚數</label> <input type="number"
+            id="minFishPerFamily" value="2" min="0" /> </div>
+        <div class="input-group"> <label for="fishPrice">魚價 ($)</label> <input type="number" id="fishPrice"
+            value="10" min="0" /> </div>
+      </fieldset>
 
+      <fieldset>
+        <legend>捕撈限制設定</legend>
+        <div class="input-group"> <label for="personalCatchLimitValue">個人捕撈上限</label> <input type="number" id="personalCatchLimitValue" value="50" min="0" /> </div>
+        <div class="input-group"> <label>啟用個人捕撈上限</label> <button id="toggle-personal-limit-btn-config" class="toggle-btn">OFF</button> </div>
+        <div class="input-group"> <label for="totalCatchLimit">年度最高捕魚總量</label> <input type="number" id="totalCatchLimit" value="100" min="0" /> </div>
+        <div class="input-group"> <label>啟用總量管制</label> <button id="toggle-total-limit-btn-config" class="toggle-btn">OFF</button> </div>
+      </fieldset>
 
-      <div class="input-group"> <label>啟用學生端公共投資</label> <button id="toggle-public-investment-btn-config" class="toggle-btn">OFF</button> </div>
-      <div class="input-group"> <label for="maintenanceInvestmentUnit">魚池維護單位投資 ($)</label> <input type="number" id="maintenanceInvestmentUnit" value="100" min="1" /> </div>
-      <div class="input-group"> <label for="maintenanceGrowthBonus">每單位維護提升增長率 (%)</label> <input type="number" id="maintenanceGrowthBonus" value="1" min="0" step="0.1" /> </div>
-      <div class="input-group"> <label for="stockingInvestmentUnit">魚苗放養單位投資 ($)</label> <input type="number" id="stockingInvestmentUnit" value="1" min="1" /> </div>
-      <div class="input-group"> <label for="stockingFishBonus">每單位放養增加魚隻</label> <input type="number" id="stockingFishBonus" value="1" min="0" /> </div>
+      <fieldset>
+        <legend>學生介面顯示設定</legend>
+        <div class="input-group"> <label>是否可見其他人捕魚狀態</label> <button id="toggle-matrix-btn-config" class="toggle-btn">OFF</button> </div>
+        <div class="input-group"> <label>是否可見魚群變化圖</label> <button id="toggle-fish-chart-btn-config" class="toggle-btn">OFF</button> </div>
+      </fieldset>
 
-    </div>    
+      <fieldset>
+        <legend>公共投資設定</legend>
+        <div class="input-group"> <label>啟用公共投資</label> <button id="toggle-public-investment-btn-config" class="toggle-btn">OFF</button> </div>
+        <div class="input-group"> <label for="maintenanceInvestmentUnit">魚池維護單位投資 ($)</label> <input type="number" id="maintenanceInvestmentUnit" value="100" min="1" /> </div>
+        <div class="input-group"> <label for="maintenanceGrowthBonus">每單位維護提升增長率 (%)</label> <input type="number" id="maintenanceGrowthBonus" value="1" min="0" step="0.1" /> </div>
+        <div class="input-group"> <label for="stockingInvestmentUnit">魚苗放養單位投資 ($)</label> <input type="number" id="stockingInvestmentUnit" value="1" min="1" /> </div>
+        <div class="input-group"> <label for="stockingFishBonus">每單位放養增加魚隻</label> <input type="number" id="stockingFishBonus" value="1" min="0" /> </div>
+      </fieldset>
+    </div>  
     <div class="action-buttons"> 
       <button id="update-config-btn">更新即時設定</button>      
       <button id="start-game-btn">開始遊戲</button> 
@@ -472,7 +484,7 @@ function initializeTotalCatchChart(catchData) {
       socket.on('config', cfg => {
         console.log('[Commons Teacher] Received config:', cfg);
         gameConfigState = cfg;
-        initialFish.value = cfg.initialFish ?? 100;
+        initialFish.value = cfg.initialFish ?? 1000;
         growthRate.value = (cfg.growthRate ?? 0.2) * 100;
         minFishPerFamily.value = cfg.minFishPerFamily ?? 2;
         fishPrice.value = cfg.fishPrice ?? 10;

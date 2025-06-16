@@ -11,7 +11,7 @@ module.exports = function(nsp) {
   } catch (e) {
     console.warn("[Commons Logic] config.json not found or invalid. Using hardcoded defaults.");
     defaultConfig = {
-      initialFish: 100,
+      initialFish: 1000,
       growthRate: 0.2,
       minFishPerFamily: 2,
       fishPrice: 10,
