@@ -75,7 +75,6 @@ module.exports = function(nsp) {
         fishPool, // Send the *live* fish pool
         turn,
         totalCatchesPerTurn: gameConfig.totalCatchesPerTurn, // Send to teacher
-        totalCatchesPerTurn: gameConfig.totalCatchesPerTurn, // Send to teacher
         investmentSummary: {
             totalMaintenanceInvestmentThisTurn,
             totalStockingInvestmentThisTurn,
@@ -105,21 +104,6 @@ module.exports = function(nsp) {
   function startTurn() {
     // Initialize turn catch quota
     turnCatchRemaining = gameConfig.totalCatchLimit;
-    // Reset investments for the new turn
-    totalMaintenanceInvestmentThisTurn = 0;
-    totalStockingInvestmentThisTurn = 0;    
-    // Reset turn-specific student state
-    Object.values(students).forEach(s => {
-      if (s) {
-        s.catchThisTurn = 0; // Reset actual catch *for this turn*
-        s.requestedCatch = 0;
-        s.submitted = false;
-        // Determine and set if the student is effectively banned for THIS turn
-        s.isEffectivelyBannedThisTurn = (s.banCount > 0);
-        s.investmentMaintenanceThisTurn = 0;
-        s.investmentStockingThisTurn = 0;        
-      }
-    });
 
     // 1. Calculate effective growth rate based on maintenance investment
     let effectiveGrowthRate = gameConfig.growthRate;
@@ -141,6 +125,22 @@ module.exports = function(nsp) {
         const stockedFish = Math.floor(stockingUnitsInvested * gameConfig.stockingFishBonus);
         fishPool += stockedFish;
     }
+
+    // Reset investments for the new turn (after their effects have been applied)
+    totalMaintenanceInvestmentThisTurn = 0;
+    totalStockingInvestmentThisTurn = 0;
+    // Reset turn-specific student state for the new turn
+    Object.values(students).forEach(s => {
+      if (s) {
+        s.catchThisTurn = 0; // Reset actual catch *for this turn*
+        s.requestedCatch = 0;
+        s.submitted = false;
+        // Determine and set if the student is effectively banned for THIS turn
+        s.isEffectivelyBannedThisTurn = (s.banCount > 0);
+        s.investmentMaintenanceThisTurn = 0;
+        s.investmentStockingThisTurn = 0;
+      }
+    });
 
 
     nsp.emit('turnStarted', {
