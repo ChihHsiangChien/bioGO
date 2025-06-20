@@ -239,7 +239,8 @@
           if (currentTurnForLabel <= 0) { // Treat 0, undefined, or negative as "Start"
               fishLabels = ['Start'];
           } else {
-              fishLabels = [`年:   ${currentTurnForLabel}`]; // Start chart from this specific turn
+              fishLabels = [`第 ${currentTurnForLabel} 年`]; // Standardized label
+
           }
 
           if (fishChart) {
@@ -336,25 +337,21 @@
           const isChartVisibleNow = gameConfig.showFishChart;
 
           if (isChartVisibleNow) {
-              if (data.fishPool !== undefined) {
-                  fishPoolEl.textContent = data.fishPool; // Update numeric display
-              }
-
-              let shouldInitializeOrRefresh = !fishChart || (!wasChartVisible && isChartVisibleNow);
-              let hasNewHistory = data.fishHistory && Array.isArray(data.fishHistory) && data.fishHistory.length > 0;
-
-              if (shouldInitializeOrRefresh || (fishChart && hasNewHistory)) {
-                  if (hasNewHistory) {
-                      console.log("[Student] Initializing/Re-initializing chart with history:", data.fishHistory);
-                      initializeChartWithHistory(data.fishHistory);
-                  } else if (data.fishPool !== undefined) {
-                      console.warn(`[Student] Chart to be visible. History not provided. Initializing with current pool: ${data.fishPool} for turn: ${data.turn || 0}`);
-                      initializeChart(data.fishPool, data.turn || 0); // Use data.turn for labeling
-                  } else {
-                      console.warn("[Student] Chart to be visible, but no fish pool data provided in turnUpdate. Chart cannot be initialized/updated now.");
-                      if (fishChart) { fishChart.destroy(); fishChart = null; }
-                      fishData = []; fishLabels = [];
+              // data.fishPoolHistory is sent from server if config.showFishChart is true
+              if (data.fishPoolHistory && Array.isArray(data.fishPoolHistory) && data.fishPoolHistory.length > 0) {
+                  console.log("[Student] turnUpdate: Chart is visible. Initializing/Re-initializing with history:", data.fishPoolHistory);
+                  initializeChartWithHistory(data.fishPoolHistory);
+                  // Update numeric display with the latest known pool from history
+                  if (fishPoolEl && data.fishPoolHistory.length > 0) {
+                     fishPoolEl.textContent = data.fishPoolHistory[data.fishPoolHistory.length - 1];
                   }
+              } else {
+                  // This case should ideally not happen if isChartVisibleNow is true,
+                  // as server is expected to send history.
+                  console.warn("[Student] turnUpdate: Chart is visible, but fishPoolHistory is missing or empty. Chart may not display correctly.");
+                  if (fishChart) { fishChart.destroy(); fishChart = null; } // Clear potentially outdated chart
+                  fishData = []; fishLabels = [];
+                  if (fishPoolEl) fishPoolEl.textContent = '?'; // Indicate data missing for display
               }
           } else { // Chart is not visible now
               if (wasChartVisible && fishChart) { // If it was visible and chart object existed
@@ -364,6 +361,8 @@
                   fishData = [];
                   fishLabels = [];
               }
+              // if (fishPoolEl) fishPoolEl.textContent = '?'; // Or hide if fishPoolSection is also hidden
+
           }
       });
 
@@ -415,10 +414,18 @@
         updateUIBasedOnConfig(gameConfig); // Set initial visibility for chart/stats
 
         // Initialize chart if visible
-        if (gameConfig.showFishChart && data.fishPool !== undefined) {
-          fishPoolEl.textContent = data.fishPool;
-          initializeChart(data.fishPool); // Initialize with "Start" label
-        } else {
+        if (gameConfig.showFishChart) {
+            // `data.fishPoolHistory` is sent by server, should be like [initialFishAmount]
+            if (data.fishPoolHistory && Array.isArray(data.fishPoolHistory) && data.fishPoolHistory.length > 0) {
+                console.log("[Student] gameStarted: Initializing chart with history:", data.fishPoolHistory);
+                initializeChartWithHistory(data.fishPoolHistory);
+                if (fishPoolEl) fishPoolEl.textContent = data.fishPoolHistory[0]; // The first item is the initial pool
+            } else {
+                console.warn("[Student] gameStarted: Chart is visible, but fishPoolHistory is missing or empty. Chart cannot be initialized.");
+                if (fishChart) { fishChart.destroy(); fishChart = null; }
+                fishData = []; fishLabels = [];
+                if (fishPoolEl) fishPoolEl.textContent = '?';
+            }        } else {
           // Ensure chart is destroyed if not visible
           if (fishChart) { fishChart.destroy(); fishChart = null; }
           fishData = []; fishLabels = []; // Clear data
@@ -446,11 +453,24 @@
         turnEl.textContent = currentTurnNumber;
         if (data.config) updateUIBasedOnConfig(data.config); // Update visibility
 
-        // Update chart with data for the START of this turn if visible
-        if (data.fishPool !== undefined && gameConfig.showFishChart) {
-          fishPoolEl.textContent = data.fishPool;
-          updateChart(data.turn, data.fishPool); // Add "Turn X" data point
-        }
+        if (gameConfig.showFishChart) {
+            if (data.fishPoolHistory && Array.isArray(data.fishPoolHistory) && data.fishPoolHistory.length > 0) {
+                const currentPoolForTurnStart = data.fishPoolHistory[data.fishPoolHistory.length - 1];
+                if (fishPoolEl) fishPoolEl.textContent = currentPoolForTurnStart;
+
+                console.log("[Student] turnStarted: Chart is visible. Initializing/Re-initializing with history:", data.fishPoolHistory);
+                initializeChartWithHistory(data.fishPoolHistory);
+
+            } else {
+                console.warn("[Student] turnStarted: Chart is visible, but fishPoolHistory is missing or empty. Chart cannot be updated/initialized.");
+                if (fishChart) { fishChart.destroy(); fishChart = null; } 
+                fishData = []; fishLabels = [];
+                if (fishPoolEl) fishPoolEl.textContent = '?';
+            }
+        } else {
+            // Chart not visible, ensure it's gone
+            if (fishChart) { fishChart.destroy(); fishChart = null; }
+            fishData = []; fishLabels = [];        }
         resetTurnUI(); // Re-enable inputs
         hideStatusMessage(); // Clear status from previous turn/submission
       });

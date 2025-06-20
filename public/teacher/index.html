@@ -81,6 +81,7 @@
   </div>
   <div id="students-section">
     <h2>已登入學生</h2>
+    <p>目前人數: <span id="student-count">0</span></p>
     <ul id="student-list"></ul>
     <button id="clear-all-btn">清除所有學生</button>
   </div>
@@ -92,6 +93,7 @@
     (function(){
       const socket = io('/', { query: { role: 'teacher' } });
       const studentList = document.getElementById('student-list');
+      const studentCountEl = document.getElementById('student-count'); // Get the new span
       socket.on('updateStudentList', students => {
         studentList.innerHTML = '';
         students.forEach(s => {
@@ -109,6 +111,7 @@
           li.appendChild(btn);
           studentList.appendChild(li);
         });
+        studentCountEl.textContent = students.length; // Update the count
       });
       // Generate QR code for student login
       const qrImg = document.getElementById('qr-code');

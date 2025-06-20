@@ -35,6 +35,7 @@ module.exports = function(nsp) {
   let turn = 0;
   let turnCatchRemaining = gameConfig.totalCatchLimit; // Reset each turn
   const students = {}; // Store student data by socket.id
+  let fishPoolHistory = []; // New: To store fish pool at the start of each turn
   let totalMaintenanceInvestmentThisTurn = 0;
   let totalStockingInvestmentThisTurn = 0;  
   // submissionOrder is no longer needed for FCFS distribution logic
@@ -90,8 +91,8 @@ module.exports = function(nsp) {
           turn,
           config: gameConfig, // Send current config including toggles
           // Fish pool is sent live via sendStudentList to teacher,
-          // and potentially via turnStarted/turnEnded to students if enabled
-          fishPool: gameConfig.showFishChart ? fishPool : undefined,
+          // and potentially via turnStarted/turnEnded to students if enabled, now with history
+          fishPoolHistory: gameConfig.showFishChart ? fishPoolHistory : undefined,
           totalCatchesPerTurn: gameConfig.totalCatchesPerTurn, // Send to teacher at turn start
           investmentSummary: { // Send to teacher
               totalMaintenanceInvestmentThisTurn,
@@ -125,6 +126,11 @@ module.exports = function(nsp) {
         const stockedFish = Math.floor(stockingUnitsInvested * gameConfig.stockingFishBonus);
         fishPool += stockedFish;
     }
+    // Record fish pool history *after* growth and stocking, before student actions
+    // For turn 0 (initial state), this is handled in startGame or setConfig
+    if (turn > 0) {
+        fishPoolHistory.push(fishPool);
+    }
 
     // Reset investments for the new turn (after their effects have been applied)
     totalMaintenanceInvestmentThisTurn = 0;
@@ -146,7 +152,7 @@ module.exports = function(nsp) {
     nsp.emit('turnStarted', {
       turn,
       config: gameConfig,
-      fishPool: gameConfig.showFishChart ? fishPool : undefined, // Send initial pool if visible
+      fishPoolHistory: gameConfig.showFishChart ? fishPoolHistory : undefined, // Send history if visible
       investmentSummary: { totalMaintenanceInvestmentThisTurn, totalStockingInvestmentThisTurn } // Send to teacher
 
     });
@@ -205,7 +211,7 @@ module.exports = function(nsp) {
     // Emit turn ended event to all clients
     nsp.emit('turnEnded', {
       turn,
-      fishPool: gameConfig.showFishChart ? fishPool : undefined, // Send final pool if visible
+      currentFishPool: gameConfig.showFishChart ? fishPool : undefined, // Send current pool if visible for client to append
       stats: gameConfig.showLastTurnStats ? finalTurnStats : undefined, // Send collected stats if visible
       showFishChart: gameConfig.showFishChart, // Ensure correct flag
       totalCatchesPerTurn: gameConfig.totalCatchesPerTurn, // Send updated array
@@ -298,10 +304,28 @@ module.exports = function(nsp) {
         if (newConfig.stockingFishBonus !== undefined) {
             gameConfig.stockingFishBonus = Math.max(0, parseInt(newConfig.stockingFishBonus, 10) || gameConfig.stockingFishBonus);
         }
-        // Reset total catches when settings are changed (new game effectively)
-        gameConfig.totalCatchesPerTurn = [];
-        // Reset investments as well if config changes imply a new game state
-        
+
+        // Determine if totalCatchesPerTurn needs to be reset
+        let resetCatchesHistory = false;
+        if (turn === 0) { // Only consider resetting if the game hasn't started
+            if (newConfig.initialFish !== undefined) {
+                // initialFish was already updated above, just mark for reset
+                resetCatchesHistory = true;
+            }
+            if (newConfig.fishPool !== undefined) {
+                // fishPool was already updated above. If it's changed pre-game,
+                // it effectively sets the initial state.
+                gameConfig.initialFish = fishPool; // Ensure initialFish is synced
+                resetCatchesHistory = true;
+            }
+        }
+
+        if (resetCatchesHistory) {
+            gameConfig.totalCatchesPerTurn = [];
+            fishPoolHistory = [fishPool]; // Reset history with the new initial fish pool
+            // Reset investments as well if config changes imply a new game state (already 0 if turn is 0)
+        }
+
         teacherSocket.emit('config', gameConfig); // Confirm config back to teacher
         broadcastGameState(); // Send update to students (for their UI toggles)
         sendStudentList(); // Update teacher view (e.g., if fishPool changed)
@@ -319,6 +343,8 @@ module.exports = function(nsp) {
         console.log("[Commons Logic] Teacher startGame");
         fishPool = gameConfig.initialFish;
         turn = 1;
+        fishPoolHistory = [gameConfig.initialFish]; // Initialize history with starting pool
+        gameConfig.totalCatchesPerTurn = []; // Reset catch history for a new game
         // initialize turn-based total catch quota
         turnCatchRemaining = gameConfig.totalCatchLimit;
         Object.values(students).forEach(s => {
@@ -335,7 +361,8 @@ module.exports = function(nsp) {
         // Send gameStarted with initial state potentially visible to students
         nsp.emit('gameStarted', {
             config: gameConfig,
-            fishPool: gameConfig.showFishChart ? fishPool : undefined
+            // Send initial fish pool history if chart is visible
+            fishPoolHistory: gameConfig.showFishChart ? fishPoolHistory : undefined
         });
         sendStudentList(); // Update teacher view
         startTurn(); // Start the first turn (applies growth=0, emits turnStarted)
